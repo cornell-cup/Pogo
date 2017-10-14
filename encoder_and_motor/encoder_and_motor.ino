@@ -1,11 +1,21 @@
-int PWMPin = 6;      // LED connected to digital pin 9
 //int EN = 6;
+int PWMPin = 6;      // LED connected to digital pin 9
 int val = 230;         // variable to store the read value; range is 26-230
-int valmin = 26;
+int valmin = 100;
 #include <SPI.h>
 // Default pins from library are
 // MOSI = 11; MISO = 12; CLK = 13
 const int CS = 3; // Chip select
+
+short i = 0;
+short j = 0;
+float pwrfactor = 10;
+
+//vars for PID
+float preverror = 0;
+float error = 0;
+float deriv = 0;
+float prevderiv = 0;
 
 // commands from datasheet
 const byte NOP = 0x00; // NO oPeration (NOP)
@@ -44,20 +54,26 @@ uint8_t SPI_T ( uint8_t msg )    // Repetive SPI transmit sequence
    return( msg_temp );      // return recieved byte
 }
 
-void print_pos ( uint8_t position_array[] ) {
+float print_pos ( uint8_t position_array[] ) {
   position_array[0] &=~ 0xF0; // mask out first 4 bits (12-bit position) from two 8 bit #s
   ABSposition = pos_array[0] << 8;    // shift MSB to correct ABSposition in ABSposition message
   ABSposition += pos_array[1];    // add LSB to ABSposition message to complete message
     
-  if ( ABSposition != ABSposition_last /*&& ( abs( ABSposition * 0.08789 - ABSposition_last * 0.08789 ) < 10 )*/ ) // if nothing has changed dont waste time sending position
+  if ( true/*ABSposition != ABSposition_last && ( abs( ABSposition * 0.08789 - ABSposition_last * 0.08789 ) < 10 )*/ ) // if nothing has changed dont waste time sending position
   {
     ABSposition_last = ABSposition;    // set last position to current position
     deg = ABSposition;
     deg = deg * 0.08789;    // aprox 360/4096, 4096 because position is 12-bit (2^12 = 4096)
-    Serial.println(deg);     // send position in degrees
-  }   
+    deg = deg - 21.3;
+    if ( deg < 0) { deg = deg + 360; } 
+    //Serial.println(deg);     // send position in degrees
+  }  
+  else {
+    deg = -1.0; 
+  }
 
   pinMode(PWMPin, OUTPUT);   // sets the pin as output
+  return(deg);
 //  pinMode(EN, OUTPUT);
 //  digitalWrite(EN, HIGH);
 //  analogWrite(PWMPin, val);  // analogRead values go from 0 to 1023, analogWrite values from 0 to 255
@@ -71,10 +87,22 @@ void loop()
 
 {
 
-  analogWrite(PWMPin, val);  // analogRead values go from 0 to 1023, analogWrite values from 0 to 255
-  delay(2000);
-  analogWrite(PWMPin, valmin);
-  delay(2000);
+//  if(i >= 1000 && j == 0){
+//    analogWrite(PWMPin, valmin);
+//    i = 0;  
+//    j = 1;
+//    delay(2);
+//  }
+//  if( i >= 1000 && j == 1){
+//    analogWrite(PWMPin, val);  // analogRead values go from 0 to 1023, analogWrite values from 0 to 255
+//    i = 0;
+//    j = 0; 
+//    delay(2);
+//  }
+//  i++;
+
+  
+  
   // To read pos, datasheet lays out steps
   // 1. Master ends READ_POS. Encoder responds with an idle character
   // 2. Continue sending NO_OPERATION while encoder response is 0xA5
@@ -102,8 +130,33 @@ void loop()
    
    digitalWrite( CS, HIGH );  // make sure SPI is deactivated  
    SPI.end();    // end transmition
+
    
    print_pos ( pos_array );
+
+   if( deg > 0){
+    error = deg - 180;
+    if ( error < 0) {
+      error + 360;
+    }
+    //error = error;
+    int awv = 0;
+    if( error < 0 ) {
+      awv = 230;
+    }
+    else{
+      awv = 90;
+    }
+    
+//    int awv = round(180 - (abs(error) * error * 20));
+    if ( awv >= 26 && awv <= 230){
+      analogWrite(PWMPin, awv);
+    }
+    else {
+      analogWrite(PWMPin, 26);
+    }
+    Serial.println(deg);
+   }
 
    delayMicroseconds(20);    // datasheet says 20us b/w reads is good
 
