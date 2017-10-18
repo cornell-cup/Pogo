@@ -6,7 +6,7 @@
 #ifndef MOTOR
 #define MOTOR
 
-extern const int PWMPin; // might not need the extern, not sure
+extern const int PWMPin;
 
 void motor_setup();
 

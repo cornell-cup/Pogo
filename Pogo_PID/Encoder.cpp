@@ -92,7 +92,7 @@ float encoder_pos()
   while ( recieved != READ_POS )    // loop while encoder is not ready to send
   {
     recieved = SPI_T( NOP );    // check again if encoder is still working
-    delay(2);    // wait a bit (2 milliseconds)
+    delayMicroseconds(20);    // wait a bit (2 milliseconds)
   }
 
   pos_array[0] = SPI_T( READ_POS );    // recieve MSB
