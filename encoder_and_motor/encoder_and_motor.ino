@@ -1,5 +1,6 @@
 //int EN = 6;
 int PWMPin = 6;      // LED connected to digital pin 9
+int DIRPin = 7;
 int val = 230;         // variable to store the read value; range is 26-230
 int valmin = 100;
 #include <SPI.h>
@@ -10,6 +11,15 @@ const int CS = 3; // Chip select
 short i = 0;
 short j = 0;
 float pwrfactor = 10;
+
+float theta = 180;
+float theta_Prev = 180;
+float theta_Speed = 0;
+float theta_Speed_Prev = 0;
+
+float power = 100;
+
+
 
 //vars for PID
 float preverror = 0;
@@ -35,6 +45,7 @@ void setup()
   
   pinMode( CS, OUTPUT ); // Slave Select
   digitalWrite( CS, HIGH ); // deactivate SPI device
+  digitalWrite(DIRPin, LOW);
   SPI.begin();
   SPI.setBitOrder( MSBFIRST );
   SPI.setDataMode( SPI_MODE0 );
@@ -64,7 +75,7 @@ float print_pos ( uint8_t position_array[] ) {
     ABSposition_last = ABSposition;    // set last position to current position
     deg = ABSposition;
     deg = deg * 0.08789;    // aprox 360/4096, 4096 because position is 12-bit (2^12 = 4096)
-    deg = deg - 21.3;
+    deg = deg - 201.8;
     if ( deg < 0) { deg = deg + 360; } 
     //Serial.println(deg);     // send position in degrees
   }  
@@ -85,24 +96,7 @@ float print_pos ( uint8_t position_array[] ) {
 
 void loop()
 
-{
-
-//  if(i >= 1000 && j == 0){
-//    analogWrite(PWMPin, valmin);
-//    i = 0;  
-//    j = 1;
-//    delay(2);
-//  }
-//  if( i >= 1000 && j == 1){
-//    analogWrite(PWMPin, val);  // analogRead values go from 0 to 1023, analogWrite values from 0 to 255
-//    i = 0;
-//    j = 0; 
-//    delay(2);
-//  }
-//  i++;
-
-  
-  
+{ 
   // To read pos, datasheet lays out steps
   // 1. Master ends READ_POS. Encoder responds with an idle character
   // 2. Continue sending NO_OPERATION while encoder response is 0xA5
@@ -133,29 +127,43 @@ void loop()
 
    
    print_pos ( pos_array );
+   
 
-   if( deg > 0){
+   if( deg > 0  && deg > 160 && deg < 200 ){
+
+    theta_Prev = theta;
+    theta = deg;
+
+    theta_Speed_Prev = theta_Speed;
+    theta_Speed = theta - theta_Prev;
+
+    //Serial.println(theta_Speed);
+    
     error = deg - 180;
     if ( error < 0) {
       error + 360;
     }
-    //error = error;
-    int awv = 0;
-    if( error < 0 ) {
-      awv = 230;
+
+    int multiple = 20;
+    if( error < 0) {
+      multiple = 20;
     }
-    else{
-      awv = 90;
+    float pid = -(multiple * error) - (100 * theta_Speed);
+    power = power +  pid;
+    if ( power > 230) {
+      power = 230;
     }
-    
-//    int awv = round(180 - (abs(error) * error * 20));
+    if ( power < 26) {
+      power = 26;
+    }
+    int awv = round(power);
     if ( awv >= 26 && awv <= 230){
       analogWrite(PWMPin, awv);
     }
     else {
       analogWrite(PWMPin, 26);
     }
-    Serial.println(deg);
+    Serial.println(power);
    }
 
    delayMicroseconds(20);    // datasheet says 20us b/w reads is good
