@@ -17,8 +17,8 @@ float theta_Prev = 180;
 float theta_Speed = 0;
 float theta_Speed_Prev = 0;
 
-float power = 100;
-
+float power = 0;
+float oldpower = 0; 
 
 
 //vars for PID
@@ -92,6 +92,24 @@ float print_pos ( uint8_t position_array[] ) {
 
 }
 
+void write_power ( int pwm ) {
+  if ( pwm < 26 && pwm >= 0){
+      pwm = 26;
+  }
+  else if (pwm > -26 && pwm < 0 ) {
+      pwm = -26;
+  }
+//  Serial.println(pwm);
+  if ( pwm > 0) {
+    analogWrite(PWMPin, pwm); 
+    digitalWrite(DIRPin, LOW);
+ 
+  } else {
+    analogWrite(PWMPin, -pwm); 
+    digitalWrite(DIRPin, HIGH);
+  }
+}
+
 
 
 void loop()
@@ -116,7 +134,7 @@ void loop()
    while ( recieved != READ_POS )    // loop while encoder is not ready to send
    {
      recieved = SPI_T( NOP );    // check again if encoder is still working 
-     delay(2);    // wait a bit (2 milliseconds)
+     delayMicroseconds(20);    // wait a bit (2 milliseconds)
    }
    
    pos_array[0] = SPI_T( READ_POS );    // recieve MSB
@@ -129,7 +147,7 @@ void loop()
    print_pos ( pos_array );
    
 
-   if( deg > 0  && deg > 160 && deg < 200 ){
+   if( deg > 0  && deg > 100 && deg < 260 && abs(deg-theta) < 4){
 
     theta_Prev = theta;
     theta = deg;
@@ -137,35 +155,36 @@ void loop()
     theta_Speed_Prev = theta_Speed;
     theta_Speed = theta - theta_Prev;
 
-    //Serial.println(theta_Speed);
+//    Serial.println(theta_Speed);
     
     error = deg - 180;
     if ( error < 0) {
       error + 360;
     }
 
-    int multiple = 20;
+    float multiple = .45;
     if( error < 0) {
-      multiple = 20;
+      multiple = .45;
     }
-    float pid = -(multiple * error) - (100 * theta_Speed);
-    power = power +  pid;
-    if ( power > 230) {
-      power = 230;
-    }
-    if ( power < 26) {
-      power = 26;
-    }
-    int awv = round(power);
-    if ( awv >= 26 && awv <= 230){
-      analogWrite(PWMPin, awv);
-    }
-    else {
-      analogWrite(PWMPin, 26);
-    }
-    Serial.println(power);
-   }
+    float pid = -(multiple * error) - (5.7 * theta_Speed) + (.005 * power);
+    if(abs(pid) < 150){    
+      power = power +  pid;
+      if ( power > 230) {
+        power = 230;
+      }
+      if ( power < -230) {
+        power = -230;
+      }
 
+      Serial.println(power);
+
+      write_power(round(power));
+      oldpower = power;   
+    }
+    
+    
+   } 
+    
    delayMicroseconds(20);    // datasheet says 20us b/w reads is good
 
 }
