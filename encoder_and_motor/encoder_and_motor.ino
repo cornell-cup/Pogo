@@ -167,7 +167,7 @@ void loop()
       multiple = .45;
     }
     float pid = -(multiple * error) - (5.7 * theta_Speed) + (.005 * power);
-    if(abs(pid) < 150){    
+    if(true){    
       power = power +  pid;
       if ( power > 230) {
         power = 230;
