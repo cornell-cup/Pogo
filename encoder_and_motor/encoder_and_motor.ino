@@ -12,20 +12,21 @@ short i = 0;
 short j = 0;
 float pwrfactor = 10;
 
-float theta = 180;
-float theta_Prev = 180;
+float theta = 0;
+float theta_Prev = 0;
 float theta_Speed = 0;
 float theta_Speed_Prev = 0;
 
-float power = 0;
-float oldpower = 0; 
+float power = 0; 
 
 
 //vars for PID
-float preverror = 0;
 float error = 0;
-float deriv = 0;
-float prevderiv = 0;
+
+float imax = 300;
+float iarr[300];
+int iptr = 0;
+float integral = 0;
 
 // commands from datasheet
 const byte NOP = 0x00; // NO oPeration (NOP)
@@ -75,12 +76,11 @@ float print_pos ( uint8_t position_array[] ) {
     ABSposition_last = ABSposition;    // set last position to current position
     deg = ABSposition;
     deg = deg * 0.08789;    // aprox 360/4096, 4096 because position is 12-bit (2^12 = 4096)
-    deg = deg - 201.8;
+    deg = deg - 202.3;
     if ( deg < 0) { deg = deg + 360; } 
-    //Serial.println(deg);     // send position in degrees
   }  
   else {
-    deg = -1.0; 
+    deg = -200.0; 
   }
 
   pinMode(PWMPin, OUTPUT);   // sets the pin as output
@@ -145,44 +145,45 @@ void loop()
 
    
    print_pos ( pos_array );
-   
-
-   if( deg > 0  && deg > 100 && deg < 260 && abs(deg-theta) < 4){
+   error  = deg - 180;
+//   Serial.println(error);
+    
+   if(error > -80 && error < 80 && abs(error-theta) < 4){
 
     theta_Prev = theta;
-    theta = deg;
+    theta = error;
 
     theta_Speed_Prev = theta_Speed;
     theta_Speed = theta - theta_Prev;
 
-//    Serial.println(theta_Speed);
     
-    error = deg - 180;
-    if ( error < 0) {
-      error + 360;
+//    integral += error;
+//    iptr += 1;
+//    if( iptr >= imax ) {
+//      iptr = 0;
+//    }
+//    integral -= iarr[iptr];
+//    iarr[iptr] = error;
+//
+//    Serial.println(integral/imax);
+    
+    float amp = abs(error) * 1.404;
+    integral += amp;
+    iptr += 1;
+    if( iptr >= imax ) {
+      iptr = 0;
     }
-
-    float multiple = .45;
-    if( error < 0) {
-      multiple = .45;
-    }
-    float pid = -(multiple * error) - (5.7 * theta_Speed) + (.005 * power);
-    if(true){    
-      power = power +  pid;
-      if ( power > 230) {
-        power = 230;
-      }
-      if ( power < -230) {
-        power = -230;
-      }
-
-      Serial.println(power);
-
-      write_power(round(power));
-      oldpower = power;   
-    }
+    integral -= iarr[iptr];
+    iarr[iptr] = amp;
+    Serial.println(amp);
     
     
+
+    float pid = -(0.45 * error) - (5.7* theta_Speed) + (.005 * (power));
+    power = power +  pid;
+    power = constrain(power, -230, 230);
+    write_power(round(power));
+
    } 
     
    delayMicroseconds(20);    // datasheet says 20us b/w reads is good

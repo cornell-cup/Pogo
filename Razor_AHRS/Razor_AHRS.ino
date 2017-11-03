@@ -185,7 +185,7 @@
 #define OUTPUT__FORMAT_BINARY 1 // Outputs data as binary float
 
 // Select your startup output mode and format here!
-int output_mode = OUTPUT__MODE_ANGLES;
+int output_mode = 1;
 int output_format = OUTPUT__FORMAT_TEXT;
 
 // Select if serial continuous streaming output is enabled per default on startup.
@@ -379,7 +379,7 @@ float G_Dt; // Integration time for DCM algorithm
 // More output-state variables
 boolean output_stream_on;
 boolean output_single_on;
-int curr_calibration_sensor = 0;
+int curr_calibration_sensor = 2;
 boolean reset_calibration_session_flag = true;
 int num_accel_errors = 0;
 int num_magn_errors = 0;
