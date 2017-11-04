@@ -212,13 +212,13 @@ boolean output_errors = false;  // true or false
 // How to calibrate? Read the tutorial at http://dev.qu.tu-berlin.de/projects/sf-razor-9dof-ahrs
 // Put MIN/MAX and OFFSET readings for your board here!
 // Accelerometer
-// "accel x,y,z (min/max) = X_MIN/X_MAX  Y_MIN/Y_MAX  Z_MIN/Z_MAX"
-#define ACCEL_X_MIN ((float) -250)
+// "accel x,y,z (min/max) = -270.0/250.0  -249.0/267.0  -282.0/226.0"
+#define ACCEL_X_MIN ((float) -270)
 #define ACCEL_X_MAX ((float) 250)
-#define ACCEL_Y_MIN ((float) -250)
-#define ACCEL_Y_MAX ((float) 250)
-#define ACCEL_Z_MIN ((float) -250)
-#define ACCEL_Z_MAX ((float) 250)
+#define ACCEL_Y_MIN ((float) -249)
+#define ACCEL_Y_MAX ((float) 267)
+#define ACCEL_Z_MIN ((float) -282)
+#define ACCEL_Z_MAX ((float) 226)
 
 // Magnetometer (standard calibration mode)
 // "magn x,y,z (min/max) = X_MIN/X_MAX  Y_MIN/Y_MAX  Z_MIN/Z_MAX"
@@ -231,15 +231,15 @@ boolean output_errors = false;  // true or false
 
 // Magnetometer (extended calibration mode)
 // Uncommend to use extended magnetometer calibration (compensates hard & soft iron errors)
-//#define CALIBRATION__MAGN_USE_EXTENDED true
-//const float magn_ellipsoid_center[3] = {0, 0, 0};
-//const float magn_ellipsoid_transform[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+#define CALIBRATION__MAGN_USE_EXTENDED true
+const float magn_ellipsoid_center[3] = {56.1895, 120.936, 102.475};
+const float magn_ellipsoid_transform[3][3] = {{0.00000, 0.00000, 0.00000}, {0.00000, 0.00000, 0.00000}, {0.00000, 0.00000, 0.00000}};
 
 // Gyroscope
-// "gyro x,y,z (current/average) = .../OFFSET_X  .../OFFSET_Y  .../OFFSET_Z
-#define GYRO_AVERAGE_OFFSET_X ((float) 0.0)
-#define GYRO_AVERAGE_OFFSET_Y ((float) 0.0)
-#define GYRO_AVERAGE_OFFSET_Z ((float) 0.0)
+// "gyro x,y,z (current/average) = .../-463.13  .../291.66  .../-156.4"
+#define GYRO_AVERAGE_OFFSET_X ((float) -463.13)
+#define GYRO_AVERAGE_OFFSET_Y ((float) 291.66)
+#define GYRO_AVERAGE_OFFSET_Z ((float) -156.40)
 
 /*
 // Calibration example:
