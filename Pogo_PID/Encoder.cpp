@@ -60,11 +60,12 @@ float get_pos () {
     ABSposition_last = ABSposition;    // set last position to current position
     deg = ABSposition;
     deg = deg * 0.08789;    // aprox 360/4096, 4096 because position is 12-bit (2^12 = 4096)
-    deg = deg - 21.3;
+    deg = deg - 202.3;
     if ( deg < 0 ) deg = deg + 360;
-    else deg = -1.0;
-    return ( deg );     // send position in degrees
+    else deg = -200.0;
   }
+
+   return ( deg );     // send position in degrees
 }
 
 void print_pos () {
