@@ -1,24 +1,153 @@
-//int EN = 6;
-int PWMPin = 6;      // LED connected to digital pin 9
-int DIRPin = 7;
-int ENPin = 8;
-int val = 230;         // variable to store the read value; range is 26-230
-int valmin = 100;
-// Default pins from library are
-// MOSI = 11; MISO = 12; CLK = 13
+/***************************************************************************************************************
+* Razor AHRS Firmware v1.4.2
+* 9 Degree of Measurement Attitude and Heading Reference System
+* for Sparkfun "9DOF Razor IMU" (SEN-10125 and SEN-10736)
+* and "9DOF Sensor Stick" (SEN-10183, 10321 and SEN-10724)
+*
+* Released under GNU GPL (General Public License) v3.0
+* Copyright (C) 2013 Peter Bartz [http://ptrbrtz.net]
+* Copyright (C) 2011-2012 Quality & Usability Lab, Deutsche Telekom Laboratories, TU Berlin
+*
+* Infos, updates, bug reports, contributions and feedback:
+*     https://github.com/ptrbrtz/razor-9dof-ahrs
+*
+*
+* History:
+*   * Original code (http://code.google.com/p/sf9domahrs/) by Doug Weibel and Jose Julio,
+*     based on ArduIMU v1.5 by Jordi Munoz and William Premerlani, Jose Julio and Doug Weibel. Thank you!
+*
+*   * Updated code (http://groups.google.com/group/sf_9dof_ahrs_update) by David Malik (david.zsolt.malik@gmail.com)
+*     for new Sparkfun 9DOF Razor hardware (SEN-10125).
+*
+*   * Updated and extended by Peter Bartz (peter-bartz@gmx.de):
+*     * v1.3.0
+*       * Cleaned up, streamlined and restructured most of the code to make it more comprehensible.
+*       * Added sensor calibration (improves precision and responsiveness a lot!).
+*       * Added binary yaw/pitch/roll output.
+*       * Added basic serial command interface to set output modes/calibrate sensors/synch stream/etc.
+*       * Added support to synch automatically when using Rovering Networks Bluetooth modules (and compatible).
+*       * Wrote new easier to use test program (using Processing).
+*       * Added support for new version of "9DOF Razor IMU": SEN-10736.
+*       --> The output of this code is not compatible with the older versions!
+*       --> A Processing sketch to test the tracker is available.
+*     * v1.3.1
+*       * Initializing rotation matrix based on start-up sensor readings -> orientation OK right away.
+*       * Adjusted gyro low-pass filter and output rate settings.
+*     * v1.3.2
+*       * Adapted code to work with new Arduino 1.0 (and older versions still).
+*     * v1.3.3
+*       * Improved synching.
+*     * v1.4.0
+*       * Added support for SparkFun "9DOF Sensor Stick" (versions SEN-10183, SEN-10321 and SEN-10724).
+*     * v1.4.1
+*       * Added output modes to read raw and/or calibrated sensor data in text or binary format.
+*       * Added static magnetometer soft iron distortion compensation
+*     * v1.4.2
+*       * (No core firmware changes)
+*
+* TODOs:
+*   * Allow optional use of EEPROM for storing and reading calibration values.
+*   * Use self-test and temperature-compensation features of the sensors.
+***************************************************************************************************************/
 
-float theta = 0;
-float theta_Prev = 0;
-float theta_Speed = 0;
-float theta_Speed_Prev = 0;
+/*
+  "9DOF Razor IMU" hardware versions: SEN-10125 and SEN-10736
 
-float power = 100; 
+  ATMega328@3.3V, 8MHz
 
-unsigned long time;
-unsigned long prev_time;
+  ADXL345  : Accelerometer
+  HMC5843  : Magnetometer on SEN-10125
+  HMC5883L : Magnetometer on SEN-10736
+  ITG-3200 : Gyro
 
-//vars for PID
-float error = 0;
+  Arduino IDE : Select board "Arduino Pro or Pro Mini (3.3v, 8Mhz) w/ATmega328"
+*/
+
+/*
+  "9DOF Sensor Stick" hardware versions: SEN-10183, SEN-10321 and SEN-10724
+
+  ADXL345  : Accelerometer
+  HMC5843  : Magnetometer on SEN-10183 and SEN-10321
+  HMC5883L : Magnetometer on SEN-10724
+  ITG-3200 : Gyro
+*/
+
+/*
+  Axis definition (differs from definition printed on the board!):
+    X axis pointing forward (towards the short edge with the connector holes)
+    Y axis pointing to the right
+    and Z axis pointing down.
+    
+  Positive yaw   : clockwise
+  Positive roll  : right wing down
+  Positive pitch : nose up
+  
+  Transformation order: first yaw then pitch then roll.
+*/
+
+/*
+  Serial commands that the firmware understands:
+  
+  "#o<params>" - Set OUTPUT mode and parameters. The available options are:
+  
+      // Streaming output
+      "#o0" - DISABLE continuous streaming output. Also see #f below.
+      "#o1" - ENABLE continuous streaming output.
+      
+      // Angles output
+      "#ob" - Output angles in BINARY format (yaw/pitch/roll as binary float, so one output frame
+              is 3x4 = 12 bytes long).
+      "#ot" - Output angles in TEXT format (Output frames have form like "#YPR=-142.28,-5.38,33.52",
+              followed by carriage return and line feed [\r\n]).
+      
+      // Sensor calibration
+      "#oc" - Go to CALIBRATION output mode.
+      "#on" - When in calibration mode, go on to calibrate NEXT sensor.
+      
+      // Sensor data output
+      "#osct" - Output CALIBRATED SENSOR data of all 9 axes in TEXT format.
+                One frame consist of three lines - one for each sensor: acc, mag, gyr.
+      "#osrt" - Output RAW SENSOR data of all 9 axes in TEXT format.
+                One frame consist of three lines - one for each sensor: acc, mag, gyr.
+      "#osbt" - Output BOTH raw and calibrated SENSOR data of all 9 axes in TEXT format.
+                One frame consist of six lines - like #osrt and #osct combined (first RAW, then CALIBRATED).
+                NOTE: This is a lot of number-to-text conversion work for the little 8MHz chip on the Razor boards.
+                In fact it's too much and an output frame rate of 50Hz can not be maintained. #osbb.
+      "#oscb" - Output CALIBRATED SENSOR data of all 9 axes in BINARY format.
+                One frame consist of three 3x3 float values = 36 bytes. Order is: acc x/y/z, mag x/y/z, gyr x/y/z.
+      "#osrb" - Output RAW SENSOR data of all 9 axes in BINARY format.
+                One frame consist of three 3x3 float values = 36 bytes. Order is: acc x/y/z, mag x/y/z, gyr x/y/z.
+      "#osbb" - Output BOTH raw and calibrated SENSOR data of all 9 axes in BINARY format.
+                One frame consist of 2x36 = 72 bytes - like #osrb and #oscb combined (first RAW, then CALIBRATED).
+      
+      // Error message output        
+      "#oe0" - Disable ERROR message output.
+      "#oe1" - Enable ERROR message output.
+    
+    
+  "#f" - Request one output frame - useful when continuous output is disabled and updates are
+         required in larger intervals only. Though #f only requests one reply, replies are still
+         bound to the internal 20ms (50Hz) time raster. So worst case delay that #f can add is 19.99ms.
+         
+         
+  "#s<xy>" - Request synch token - useful to find out where the frame boundaries are in a continuous
+         binary stream or to see if tracker is present and answering. The tracker will send
+         "#SYNCH<xy>\r\n" in response (so it's possible to read using a readLine() function).
+         x and y are two mandatory but arbitrary bytes that can be used to find out which request
+         the answer belongs to.
+          
+          
+  ("#C" and "#D" - Reserved for communication with optional Bluetooth module.)
+  
+  Newline characters are not required. So you could send "#ob#o1#s", which
+  would set binary output mode, enable continuous streaming output and request
+  a synch token all at once.
+  
+  The status LED will be on if streaming output is enabled and off otherwise.
+  
+  Byte order of binary output is little-endian: least significant byte comes first.
+*/
+
 
 
 /*****************************************************************/
@@ -60,12 +189,21 @@ int output_mode = 1;
 int output_format = OUTPUT__FORMAT_TEXT;
 
 // Select if serial continuous streaming output is enabled per default on startup.
-#define OUTPUT__STARTUP_STREAM_ON false  // true or false
+#define OUTPUT__STARTUP_STREAM_ON true  // true or false
 
 // If set true, an error message will be output if we fail to read sensor data.
 // Message format: "!ERR: reading <sensor>", followed by "\r\n".
 boolean output_errors = false;  // true or false
 
+// Bluetooth
+// You can set this to true, if you have a Rovering Networks Bluetooth Module attached.
+// The connect/disconnect message prefix of the module has to be set to "#".
+// (Refer to manual, it can be set like this: SO,#)
+// When using this, streaming output will only be enabled as long as we're connected. That way
+// receiver and sender are synchronzed easily just by connecting/disconnecting.
+// It is not necessary to set this! It just makes life easier when writing code for
+// the receiving side. The Processing test sketch also works without setting this.
+// NOTE: When using this, OUTPUT__STARTUP_STREAM_ON has no effect!
 #define OUTPUT__HAS_RN_BLUETOOTH false  // true or false
 
 
@@ -103,6 +241,40 @@ const float magn_ellipsoid_transform[3][3] = {{0.00000, 0.00000, 0.00000}, {0.00
 #define GYRO_AVERAGE_OFFSET_Y ((float) 291.66)
 #define GYRO_AVERAGE_OFFSET_Z ((float) -156.40)
 
+/*
+// Calibration example:
+
+// "accel x,y,z (min/max) = -277.00/264.00  -256.00/278.00  -299.00/235.00"
+#define ACCEL_X_MIN ((float) -277)
+#define ACCEL_X_MAX ((float) 264)
+#define ACCEL_Y_MIN ((float) -256)
+#define ACCEL_Y_MAX ((float) 278)
+#define ACCEL_Z_MIN ((float) -299)
+#define ACCEL_Z_MAX ((float) 235)
+
+// "magn x,y,z (min/max) = -511.00/581.00  -516.00/568.00  -489.00/486.00"
+//#define MAGN_X_MIN ((float) -511)
+//#define MAGN_X_MAX ((float) 581)
+//#define MAGN_Y_MIN ((float) -516)
+//#define MAGN_Y_MAX ((float) 568)
+//#define MAGN_Z_MIN ((float) -489)
+//#define MAGN_Z_MAX ((float) 486)
+
+// Extended magn
+#define CALIBRATION__MAGN_USE_EXTENDED true
+const float magn_ellipsoid_center[3] = {91.5, -13.5, -48.1};
+const float magn_ellipsoid_transform[3][3] = {{0.902, -0.00354, 0.000636}, {-0.00354, 0.9, -0.00599}, {0.000636, -0.00599, 1}};
+
+// Extended magn (with Sennheiser HD 485 headphones)
+//#define CALIBRATION__MAGN_USE_EXTENDED true
+//const float magn_ellipsoid_center[3] = {72.3360, 23.0954, 53.6261};
+//const float magn_ellipsoid_transform[3][3] = {{0.879685, 0.000540833, -0.0106054}, {0.000540833, 0.891086, -0.0130338}, {-0.0106054, -0.0130338, 0.997494}};
+
+//"gyro x,y,z (current/average) = -40.00/-42.05  98.00/96.20  -18.00/-18.36"
+#define GYRO_AVERAGE_OFFSET_X ((float) -42.05)
+#define GYRO_AVERAGE_OFFSET_Y ((float) 96.20)
+#define GYRO_AVERAGE_OFFSET_Z ((float) -18.36)
+*/
 
 
 // DEBUG OPTIONS
@@ -110,7 +282,7 @@ const float magn_ellipsoid_transform[3][3] = {{0.00000, 0.00000, 0.00000}, {0.00
 // When set to true, gyro drift correction will not be applied
 #define DEBUG__NO_DRIFT_CORRECTION false
 // Print elapsed time after each I/O loop
-#define DEBUG__PRINT_LOOP_TIME false
+#define DEBUG__PRINT_LOOP_TIME true
 
 
 /*****************************************************************/
@@ -233,7 +405,7 @@ void reset_sensor_fusion() {
   // GET PITCH
   // Using y-z-plane-component/x-component of gravity vector
   pitch = -atan2(accel[0], sqrt(accel[1] * accel[1] + accel[2] * accel[2]));
-	
+  
   // GET ROLL
   // Compensate pitch of gravity vector 
   Vector_Cross_Product(temp1, accel, xAxis);
@@ -315,25 +487,7 @@ char readChar()
   return Serial.read();
 }
 
-void write_power ( int pwm ) {
-  if ( pwm < 27 && pwm >= 0){
-      pwm = 27;
-  }
-  else if (pwm > -27 && pwm < 0 ) {
-      pwm = -27;
-  }
-//  Serial.println(pwm);
-  if ( pwm > 0) {
-    analogWrite(PWMPin, pwm); 
-    digitalWrite(DIRPin, LOW);
- 
-  } else {
-    analogWrite(PWMPin, -pwm); 
-    digitalWrite(DIRPin, HIGH);
-  }
-}
-
-void setup()
+void setup_imu()
 {
   // Init serial output
   Serial.begin(OUTPUT__BAUD_RATE);
@@ -354,26 +508,16 @@ void setup()
   reset_sensor_fusion();
 
   // Init output
-#if (OUTPUT__HAS_RN_BLUETOOTH == true) || (OUTPUT__STARTUP_STREAM_ON == false)
+#if (OUTPUT__STARTUP_STREAM_ON == false)
   turn_output_stream_off();
 #else
   turn_output_stream_on();
 #endif
-//  digitalWrite(DIRPin, LOW);
-  pinMode(PWMPin, OUTPUT);   // sets the pin as output
-  pinMode(DIRPin, OUTPUT);   // sets the pin as output
-  pinMode(ENPin, OUTPUT); // sets the pin as output
-  digitalWrite(ENPin, HIGH);
-  analogWrite(PWMPin, 100); 
-  digitalWrite(DIRPin, LOW);
 }
 
 // Main loop
-void loop()
+void loop_imu()
 {
-  
-//  Serial.print("loop time (ms) = ");
-//  Serial.println(millis() - timestamp);
   // Time to read the sensors again?
   if((millis() - timestamp) >= OUTPUT__DATA_INTERVAL)
   {
@@ -386,61 +530,18 @@ void loop()
     // Update sensor readings
     read_sensors();
 
-    if (output_mode == OUTPUT__MODE_CALIBRATE_SENSORS)  // We're in calibration mode
-    {
-      check_reset_calibration_session();  // Check if this session needs a reset
-      if (output_stream_on || output_single_on) output_calibration(curr_calibration_sensor);
-    }
-    else if (output_mode == OUTPUT__MODE_ANGLES)  // Output angles
-    {
-      // Apply sensor calibration
-      compensate_sensor_errors();
-    
-      // Run DCM algorithm
-      Compass_Heading(); // Calculate magnetic heading
-      Matrix_update();
-      Normalize();
-      Drift_correction();
-      Euler_angles();
-      
-      if (output_stream_on || output_single_on) output_angles();
-    }
-    else  // Output sensor values
-    {      
-      if (output_stream_on || output_single_on) output_sensors();
-    }
-    
-    output_single_on = false;
-    
-    Serial.print("Time: ");
-    prev_time = time;
-    time = millis();
-    
-    //prints time since program started
-    Serial.println(time-prev_time);
-    
+    // Apply sensor calibration
+    compensate_sensor_errors();
+  
+    // Run DCM algorithm
+    Compass_Heading(); // Calculate magnetic heading
+    Matrix_update();
+    Normalize();
+    Drift_correction();
+    Euler_angles();
 
-    error = -TO_DEG(pitch)-1;
-//    Serial.println(error);
-
-    if(error > -80 && error < 80 && abs(error-theta) < 20){
-  
-      theta_Prev = theta;
-      theta = error;
-  
-      theta_Speed_Prev = theta_Speed;
-      theta_Speed = theta - theta_Prev;
+    Serial.print(roll);
       
-//      Serial.println(power);
-  
-  
-      float pid = -(4 * error) - (4* theta_Speed) - (0.005 * (power));
-      power = power +  pid;
-      power = constrain(power, -230, 230);
-      write_power(round(power));
-  
-    } 
-  }
 
     
 }

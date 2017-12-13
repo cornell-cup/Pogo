@@ -63,6 +63,8 @@ void setup()
   delay( 2000 );
   SPI.end();
 
+  setup_imu();
+
 }
 uint8_t SPI_T ( uint8_t msg )    // Repetive SPI transmit sequence
 {
@@ -82,7 +84,7 @@ float print_pos ( uint8_t position_array[] ) {
     ABSposition_last = ABSposition;    // set last position to current position
     deg = ABSposition;
     deg = deg * 0.08789;    // aprox 360/4096, 4096 because position is 12-bit (2^12 = 4096)
-    deg = deg + 88.7  ;
+    deg = deg - 271.2;
     if ( deg < 0) { deg = deg + 360; } 
   }  
   else {
@@ -162,8 +164,6 @@ void loop()
 
     theta_Speed_Prev = theta_Speed;
     theta_Speed = theta - theta_Prev;
-    Serial.println(error);
-
 
     
 //    integral += error;
@@ -186,13 +186,13 @@ void loop()
 //    iarr[iptr] = amp;
 //    Serial.println(amp);
 
-//    Serial.print("Time: ");
-//    prev_time = time;
-//    time = millis();
-//    
-//    //prints time since program started
-//    Serial.println(time-prev_time);
-//    
+    Serial.print("Time: ");
+    prev_time = time;
+    time = millis();
+    
+    //prints time since program started
+    Serial.println(time-prev_time);
+    
 
     float pid = -(0.45 * error) - (5.7* theta_Speed) + (.005 * (power));
     power = power +  pid;
@@ -202,5 +202,5 @@ void loop()
    } 
     
    delayMicroseconds(20);    // datasheet says 20us b/w reads is good
-
+   loop_imu();
 }

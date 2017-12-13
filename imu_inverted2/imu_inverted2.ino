@@ -1,4 +1,8 @@
-//int EN = 6;
+#include <SPI.h>
+// Default pins from library are
+// MOSI = 11; MISO = 12; CLK = 13
+const int CS = 3; // Chip select
+
 int PWMPin = 6;      // LED connected to digital pin 9
 int DIRPin = 7;
 int ENPin = 8;
@@ -12,13 +16,24 @@ float theta_Prev = 0;
 float theta_Speed = 0;
 float theta_Speed_Prev = 0;
 
-float power = 100; 
+float power = 100;
 
 unsigned long time;
 unsigned long prev_time;
 
 //vars for PID
 float error = 0;
+float error_enc = 0;
+
+// commands from datasheet
+const byte NOP = 0x00; // NO oPeration (NOP)
+const byte READ_POS = 0x10; // Read position
+
+// vars for getting positions (12-bit, so need to separate into 2 holders)
+uint16_t ABSposition = 0;
+uint16_t ABSposition_last = 0;
+uint8_t pos_array[2];
+float deg = 0.00;
 
 
 /*****************************************************************/
@@ -128,8 +143,8 @@ const float magn_ellipsoid_transform[3][3] = {{0.00000, 0.00000, 0.00000}, {0.00
 
 // Check if hardware version code is defined
 #ifndef HW__VERSION_CODE
-  // Generate compile error
-  #error YOU HAVE TO SELECT THE HARDWARE YOU ARE USING! See "HARDWARE OPTIONS" in "USER SETUP AREA" at top of Razor_AHRS.ino!
+// Generate compile error
+#error YOU HAVE TO SELECT THE HARDWARE YOU ARE USING! See "HARDWARE OPTIONS" in "USER SETUP AREA" at top of Razor_AHRS.ino!
 #endif
 
 #include <Wire.h>
@@ -182,12 +197,12 @@ int gyro_num_samples = 0;
 
 // DCM variables
 float MAG_Heading;
-float Accel_Vector[3]= {0, 0, 0}; // Store the acceleration in a vector
-float Gyro_Vector[3]= {0, 0, 0}; // Store the gyros turn rate in a vector
-float Omega_Vector[3]= {0, 0, 0}; // Corrected Gyro_Vector data
-float Omega_P[3]= {0, 0, 0}; // Omega Proportional correction
-float Omega_I[3]= {0, 0, 0}; // Omega Integrator
-float Omega[3]= {0, 0, 0};
+float Accel_Vector[3] = {0, 0, 0}; // Store the acceleration in a vector
+float Gyro_Vector[3] = {0, 0, 0}; // Store the gyros turn rate in a vector
+float Omega_Vector[3] = {0, 0, 0}; // Corrected Gyro_Vector data
+float Omega_P[3] = {0, 0, 0}; // Omega Proportional correction
+float Omega_I[3] = {0, 0, 0}; // Omega Integrator
+float Omega[3] = {0, 0, 0};
 float errorRollPitch[3] = {0, 0, 0};
 float errorYaw[3] = {0, 0, 0};
 float DCM_Matrix[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
@@ -229,50 +244,50 @@ void reset_sensor_fusion() {
 
   read_sensors();
   timestamp = millis();
-  
+
   // GET PITCH
   // Using y-z-plane-component/x-component of gravity vector
   pitch = -atan2(accel[0], sqrt(accel[1] * accel[1] + accel[2] * accel[2]));
-	
+
   // GET ROLL
-  // Compensate pitch of gravity vector 
+  // Compensate pitch of gravity vector
   Vector_Cross_Product(temp1, accel, xAxis);
   Vector_Cross_Product(temp2, xAxis, temp1);
   // Normally using x-z-plane-component/y-component of compensated gravity vector
   // roll = atan2(temp2[1], sqrt(temp2[0] * temp2[0] + temp2[2] * temp2[2]));
   // Since we compensated for pitch, x-z-plane-component equals z-component:
   roll = atan2(temp2[1], temp2[2]);
-  
+
   // GET YAW
   Compass_Heading();
   yaw = MAG_Heading;
-  
+
   // Init rotation matrix
   init_rotation_matrix(DCM_Matrix, yaw, pitch, roll);
 }
 
 // Apply calibration to raw sensor readings
 void compensate_sensor_errors() {
-    // Compensate accelerometer error
-    accel[0] = (accel[0] - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
-    accel[1] = (accel[1] - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
-    accel[2] = (accel[2] - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
+  // Compensate accelerometer error
+  accel[0] = (accel[0] - ACCEL_X_OFFSET) * ACCEL_X_SCALE;
+  accel[1] = (accel[1] - ACCEL_Y_OFFSET) * ACCEL_Y_SCALE;
+  accel[2] = (accel[2] - ACCEL_Z_OFFSET) * ACCEL_Z_SCALE;
 
-    // Compensate magnetometer error
+  // Compensate magnetometer error
 #if CALIBRATION__MAGN_USE_EXTENDED == true
-    for (int i = 0; i < 3; i++)
-      magnetom_tmp[i] = magnetom[i] - magn_ellipsoid_center[i];
-    Matrix_Vector_Multiply(magn_ellipsoid_transform, magnetom_tmp, magnetom);
+  for (int i = 0; i < 3; i++)
+    magnetom_tmp[i] = magnetom[i] - magn_ellipsoid_center[i];
+  Matrix_Vector_Multiply(magn_ellipsoid_transform, magnetom_tmp, magnetom);
 #else
-    magnetom[0] = (magnetom[0] - MAGN_X_OFFSET) * MAGN_X_SCALE;
-    magnetom[1] = (magnetom[1] - MAGN_Y_OFFSET) * MAGN_Y_SCALE;
-    magnetom[2] = (magnetom[2] - MAGN_Z_OFFSET) * MAGN_Z_SCALE;
+  magnetom[0] = (magnetom[0] - MAGN_X_OFFSET) * MAGN_X_SCALE;
+  magnetom[1] = (magnetom[1] - MAGN_Y_OFFSET) * MAGN_Y_SCALE;
+  magnetom[2] = (magnetom[2] - MAGN_Z_OFFSET) * MAGN_Z_SCALE;
 #endif
 
-    // Compensate gyroscope error
-    gyro[0] -= GYRO_AVERAGE_OFFSET_X;
-    gyro[1] -= GYRO_AVERAGE_OFFSET_Y;
-    gyro[2] -= GYRO_AVERAGE_OFFSET_Z;
+  // Compensate gyroscope error
+  gyro[0] -= GYRO_AVERAGE_OFFSET_X;
+  gyro[1] -= GYRO_AVERAGE_OFFSET_Y;
+  gyro[2] -= GYRO_AVERAGE_OFFSET_Z;
 }
 
 // Reset calibration session if reset_calibration_session_flag is set
@@ -282,7 +297,7 @@ void check_reset_calibration_session()
 
   // Reset this calibration session?
   if (!reset_calibration_session_flag) return;
-  
+
   // Reset acc and mag calibration variables
   for (int i = 0; i < 3; i++) {
     accel_min[i] = accel_max[i] = accel[i];
@@ -292,7 +307,7 @@ void check_reset_calibration_session()
   // Reset gyro calibration variables
   gyro_num_samples = 0;  // Reset gyro calibration averaging
   gyro_average[0] = gyro_average[1] = gyro_average[2] = 0.0f;
-  
+
   reset_calibration_session_flag = false;
 }
 
@@ -316,19 +331,19 @@ char readChar()
 }
 
 void write_power ( int pwm ) {
-  if ( pwm < 27 && pwm >= 0){
-      pwm = 27;
+  if ( pwm < 27 && pwm >= 0) {
+    pwm = 27;
   }
   else if (pwm > -27 && pwm < 0 ) {
-      pwm = -27;
+    pwm = -27;
   }
-//  Serial.println(pwm);
+  //  Serial.println(pwm);
   if ( pwm > 0) {
-    analogWrite(PWMPin, pwm); 
+    analogWrite(PWMPin, pwm);
     digitalWrite(DIRPin, LOW);
- 
+
   } else {
-    analogWrite(PWMPin, -pwm); 
+    analogWrite(PWMPin, -pwm);
     digitalWrite(DIRPin, HIGH);
   }
 }
@@ -337,7 +352,7 @@ void setup()
 {
   // Init serial output
   Serial.begin(OUTPUT__BAUD_RATE);
-  
+
   // Init status LED
   pinMode (STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LOW);
@@ -348,7 +363,7 @@ void setup()
   Accel_Init();
   Magn_Init();
   Gyro_Init();
-  
+
   // Read sensors, init DCM algorithm
   delay(20);  // Give sensors enough time to collect data
   reset_sensor_fusion();
@@ -359,23 +374,71 @@ void setup()
 #else
   turn_output_stream_on();
 #endif
-//  digitalWrite(DIRPin, LOW);
+  //  digitalWrite(DIRPin, LOW);
   pinMode(PWMPin, OUTPUT);   // sets the pin as output
   pinMode(DIRPin, OUTPUT);   // sets the pin as output
   pinMode(ENPin, OUTPUT); // sets the pin as output
   digitalWrite(ENPin, HIGH);
-  analogWrite(PWMPin, 100); 
+  analogWrite(PWMPin, 100);
   digitalWrite(DIRPin, LOW);
+
+  pinMode( CS, OUTPUT ); // Slave Select
+  digitalWrite( CS, HIGH ); // deactivate SPI device
+  SPI.begin();
+  SPI.setBitOrder( MSBFIRST );
+  SPI.setDataMode( SPI_MODE0 );
+  SPI.setClockDivider( SPI_CLOCK_DIV32 ); // sets SPI clock to 1/32 freq of sys CLK (ie, 16/32 MHz)
+  Serial.println( "STARTING" );
+  Serial.flush();
+  delay( 2000 );
+  SPI.end();
+
+}
+
+uint8_t SPI_T ( uint8_t msg )    // Repetive SPI transmit sequence
+{
+  digitalWrite( CS, LOW );     // active SPI device
+  uint8_t msg_temp = SPI.transfer( msg );    // send and recieve
+  digitalWrite( CS, HIGH );    // deselect SPI device
+  return ( msg_temp );     // return recieved byte
+}
+
+float print_pos ( uint8_t position_array[] ) {
+  position_array[0] &= ~ 0xF0; // mask out first 4 bits (12-bit position) from two 8 bit #s
+  ABSposition = pos_array[0] << 8;    // shift MSB to correct ABSposition in ABSposition message
+  ABSposition += pos_array[1];    // add LSB to ABSposition message to complete message
+
+  if ( true/*ABSposition != ABSposition_last && ( abs( ABSposition * 0.08789 - ABSposition_last * 0.08789 ) < 10 )*/ ) // if nothing has changed dont waste time sending position
+  {
+    ABSposition_last = ABSposition;    // set last position to current position
+    deg = ABSposition;
+    deg = deg * 0.08789;    // aprox 360/4096, 4096 because position is 12-bit (2^12 = 4096)
+    deg = deg - 271.2;
+    if ( deg < 0) {
+      deg = deg + 360;
+    }
+  }
+  else {
+    deg = -200.0;
+  }
+
+  pinMode(PWMPin, OUTPUT);   // sets the pin as output
+  return (deg);
+  //  pinMode(EN, OUTPUT);
+  //  digitalWrite(EN, HIGH);
+  //  analogWrite(PWMPin, val);  // analogRead values go from 0 to 1023, analogWrite values from 0 to 255
+
+
 }
 
 // Main loop
 void loop()
 {
-  
-//  Serial.print("loop time (ms) = ");
-//  Serial.println(millis() - timestamp);
+
+//    Serial.print("loop time (ms) = ");
+//    Serial.println(millis() - timestamp);
   // Time to read the sensors again?
-  if((millis() - timestamp) >= OUTPUT__DATA_INTERVAL)
+  if ((millis() - timestamp) >= OUTPUT__DATA_INTERVAL)
   {
     timestamp_old = timestamp;
     timestamp = millis();
@@ -385,62 +448,80 @@ void loop()
 
     // Update sensor readings
     read_sensors();
+    
+    // Apply sensor calibration
+    compensate_sensor_errors();
 
-    if (output_mode == OUTPUT__MODE_CALIBRATE_SENSORS)  // We're in calibration mode
-    {
-      check_reset_calibration_session();  // Check if this session needs a reset
-      if (output_stream_on || output_single_on) output_calibration(curr_calibration_sensor);
-    }
-    else if (output_mode == OUTPUT__MODE_ANGLES)  // Output angles
-    {
-      // Apply sensor calibration
-      compensate_sensor_errors();
-    
-      // Run DCM algorithm
-      Compass_Heading(); // Calculate magnetic heading
-      Matrix_update();
-      Normalize();
-      Drift_correction();
-      Euler_angles();
-      
-      if (output_stream_on || output_single_on) output_angles();
-    }
-    else  // Output sensor values
-    {      
-      if (output_stream_on || output_single_on) output_sensors();
-    }
-    
-    output_single_on = false;
-    
-    Serial.print("Time: ");
-    prev_time = time;
-    time = millis();
-    
-    //prints time since program started
-    Serial.println(time-prev_time);
+    // Run DCM algorithm
+    Compass_Heading(); // Calculate magnetic heading
+    Matrix_update();
+    Normalize();
+    Drift_correction();
+    Euler_angles();
+
+
+
+
+//    uint8_t recieved = 0xA5;    //just a temp variable
+//    ABSposition = 0;    //reset position 
+
+//    SPI.begin();    // start transmition
+//    digitalWrite( CS, LOW ); // active up SPI device
+//
+//    SPI_T( READ_POS );   // issue read command
+//
+//    recieved = SPI_T( NOP );    // issue NOP to check if encoder is ready to send
+//    int c = 0;
+//    while ( recieved != READ_POS  && c < 200)    // loop while encoder is not ready to send
+//    {
+//      recieved = SPI_T( NOP );    // check again if encoder is still working
+//      delayMicroseconds(20);    // wait a bit (2 milliseconds)
+//      c+= 1;
+//    }
+//
+//    pos_array[0] = SPI_T( READ_POS );    // recieve MSB
+//    pos_array[1] = SPI_T( READ_POS );    // recieve LSB
+//
+//    digitalWrite( CS, HIGH );  // make sure SPI is deactivated
+//    SPI.end();    // end transmition
+
+
+//    print_pos ( pos_array );
+//    error_enc  = deg - 180;
+//    Serial.println(error_enc);
+
+//    Serial.print("Time: ");
+//    prev_time = time;
+//    time = millis();
+//
+//    //prints time since program started
+//    Serial.println(time - prev_time);
+
+
+    error = -TO_DEG(pitch) - 1;
+    Serial.println(error);
+//  Serial.println(error_enc - error);
+
     
 
-    error = -TO_DEG(pitch)-1;
-//    Serial.println(error);
-
-    if(error > -80 && error < 80 && abs(error-theta) < 20){
-  
-      theta_Prev = theta;
-      theta = error;
-  
-      theta_Speed_Prev = theta_Speed;
-      theta_Speed = theta - theta_Prev;
-      
-//      Serial.println(power);
-  
-  
-      float pid = -(4 * error) - (4* theta_Speed) - (0.005 * (power));
-      power = power +  pid;
-      power = constrain(power, -230, 230);
-      write_power(round(power));
-  
-    } 
+//    if (error > -80 && error < 80 && abs(error - theta) < 20) {
+//
+//      theta_Prev = theta;
+//      theta = error;
+//
+//      theta_Speed_Prev = theta_Speed;
+//      theta_Speed = theta - theta_Prev;
+//
+//      //      Serial.println(power);
+//
+//
+//      float pid = -(4 * error) - (4 * theta_Speed) - (0.005 * (power));
+//      power = power +  pid;
+//      power = constrain(power, -230, 230);
+//      write_power(round(power));
+//
+//    }
   }
 
-    
+
 }
