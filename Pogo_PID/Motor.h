@@ -6,8 +6,9 @@
 #ifndef MOTOR
 #define MOTOR
 
-extern const int PWMPin;
+#define PWMPin 6
 
 void motor_setup();
+void write_power( int pwm );
 
 #endif // MOTOR

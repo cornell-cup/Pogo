@@ -10,9 +10,9 @@ const int CS = 3; // Chip select
 
 void encoder_setup();
 uint8_t SPI_T ( uint8_t msg );
-uint16_t get_pos ( uint8_t position_array[] );
+float get_pos ();
 float encoder_pos();
 
-void print_pos ( uint8_t position_array[] ); // if-def'ed
+void print_pos (); // if-def'ed
 
 #endif // ENCODER
