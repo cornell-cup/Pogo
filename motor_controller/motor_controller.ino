@@ -1,6 +1,9 @@
 #include "VescUart.h"
 #include "datatypes.h"
 
+unsigned long time;
+unsigned long prev_time;
+unsigned long tx_time;
 unsigned long count;
 
 void setup() {
@@ -22,19 +25,33 @@ char buffer[MAX_BUFFER_LEN];
 #define CURRENT_DECEL 0.20f
 float current = 0.0;
 bool accel = true;
+bool read_rpm = false;
 
 // the loop function runs over and over again until power down or reset
 void loop() {
-  
-  if (VescUartGetValue(measuredValues)) {
-    Serial.print("Loop: "); Serial.println(count++);
-    SerialPrint(measuredValues);
-    delay(10);
+
+  prev_time = time;
+  time = millis();
+  Serial.println( prev_time );
+  delay(5);
+  if( !read_rpm ) {
+    VescUartGetValue(measuredValues);
+    tx_time = time;  
+    read_rpm = true;
   }
   else {
-    Serial.println("Failed to get data!");
+    if( time - tx_time  > 120 ) {
+      if( VescUartReadValue(measuredValues) ) {
+        Serial.print("Loop: "); Serial.println(count++);
+        SerialPrint(measuredValues);
+        read_rpm = false;
+      }
+      else {
+        Serial.println("Failed to get data!");
+        read_rpm = false;
+      }
+    }
   }
-  
 
   if (accel) {
     if (current < MAX_CURRENT - 0.5f) {
@@ -55,6 +72,8 @@ void loop() {
     VescUartSetCurrent(current);
 
   }
+
+  delay(10);
 
 
 //  while (Serial1.available() > 0) {

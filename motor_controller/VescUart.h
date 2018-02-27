@@ -70,7 +70,9 @@ void SerialPrint(uint8_t* data, int len);
 ///Sends a command to VESC and stores the returned data
 ///@param bldcMeasure struct with received data
 //@return true if sucess
-bool VescUartGetValue(struct bldcMeasure& values);
+void VescUartGetValue(struct bldcMeasure& values);
+bool VescUartReadValue(struct bldcMeasure& values);
+
 
 ///Sends a command to VESC to control the motor current
 ///@param current as float with the current for the motor
