@@ -120,7 +120,7 @@ void loop()
 //    Serial.println(error);
 
     if(time-prev_time < 100){
-      theta_Integral += (theta-.1) * (time-prev_time) / 10000.0;
+//      theta_Integral += (theta-.1) * (time-prev_time) / 10000.0;
       theta_Integral = constrain(theta_Integral, -theta_Integral_Max, theta_Integral_Max);
     }
 //    Serial.print(theta_Integral);
