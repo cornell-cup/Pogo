@@ -42,11 +42,6 @@ float integral = 0;
 const byte NOP = 0x00; // NO oPeration (NOP)
 const byte READ_POS = 0x10; // Read position
 
-// vars for getting positions (12-bit, so need to separate into 2 holders)
-uint16_t ABSposition = 0;
-uint16_t ABSposition_last = 0;
-uint8_t pos_array[2];
-float deg = 0.00;
 
 
 void setup()
@@ -152,7 +147,7 @@ void loop()
 
     
 
-    float pid = -(0.45 * error) - (8.2* theta_Speed) + (.005 * (power));
+    float pid = -(0.45 * error) - (38.2* theta_Speed) + (.005 * (power));
     power = power +  pid;
     power = constrain(power, -230, 230);
     write_power(round(power));
