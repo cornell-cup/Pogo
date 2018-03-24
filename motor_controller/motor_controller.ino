@@ -85,37 +85,18 @@ void loop() {
 
   sensors_event_t event;
   bno.getEvent(&event);
-  error = event.orientation.y;
-  error = error - 0.35 + (0 * .2 * theta_Integral) -  ( .0007 * measuredValues.rpm);
+  error = (event.orientation.y);
   Serial.print("       ");
   Serial.println(error );
-
-//  if (accel) {
-//    if (current < MAX_CURRENT - 0.5f) {
-//      current += CURRENT_ACCEL;
-//    }
-//    else {
-//      accel = false;
-//    }
-//    VescUartSetCurrent(current);
-//  }
-//  else {
-//    if (current > -MAX_CURRENT + 0.5f) {
-//      current -= CURRENT_ACCEL;
-//    }
-//    else {
-//      accel = true;
-//    }
-//    VescUartSetCurrent(current);
-//
-//  }
+  error = error  + (0 * .2 * theta_Integral) -  ( .0007 * measuredValues.rpm);
+  Serial.print("       ");
+  Serial.println(error );
 
   if ( !isRunning ) {
     VescUartSetCurrentBrake(2.0f);
     if ( abs(error) < 0.5 ) {
       isRunning = true;
       theta_Integral = 0;
-      
     }
   }
   else {
@@ -137,18 +118,19 @@ void loop() {
       }
       Serial.print("               ");
       Serial.println( theta_Integral );
-    
-      float power = -(5.62 * error) - (33.0 * theta_Speed); //+ (.00001 * measuredValues.rpm);
-      power = constrain(power, -MAX_CURRENT, MAX_CURRENT);
-      VescUartSetCurrent(power);
-      Serial.print("                      ");
-      Serial.println( power );
-
+      
+  float power;
+  if (error>7) power = -(5.62 * error) - (33.0 * theta_Speed);
+  else power = -(3.62 * error) - (33.0 * theta_Speed); 
+  power = constrain(power, -MAX_CURRENT, MAX_CURRENT);
+  VescUartSetCurrent(power);
+  Serial.print("                      ");
+  Serial.println( power );
+  
     }    
   }
   
   delay(10);
-
 
 //  while (Serial.available() > 0) {
 //    int c = Serial.read();
@@ -191,6 +173,6 @@ void loop() {
 //      bindex = 0;
 //    }
 //  }
-  
+
 }
 
