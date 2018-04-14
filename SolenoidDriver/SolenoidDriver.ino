@@ -1,4 +1,4 @@
-#define NOT_DEBUG       // define as "DEBUG" to go into debugging mode with Serial Monitor
+#define DEBUG       // define as "DEBUG" to go into debugging mode with Serial Monitor
 
 // Pin assignments
 const int POT = A2;     // Linear potentiometer
@@ -31,8 +31,8 @@ void solenoidControl( int onecycle, int v_level ) {
   int half_cycle = onecycle / 2;
 
   #ifdef DEBUG
-  Serial.println( "analogWrite input = [ ", scaled_volts, " ]" ); // TODO check if this works
-  Serial.println( "half_cycle ( delay input ) = [ ", half_cycle, " ]");
+  Serial.print( "analogWrite input = [ " ); Serial.print( scaled_volts ); Serial.println(" ]" );
+  Serial.print( "half_cycle ( delay input ) = [ " ); Serial.print( half_cycle ); Serial.println( " ]" );
   Serial.println( "HIGH" );
   #endif // DEBUG
 
@@ -69,7 +69,7 @@ void solenoidSweep( int start_val, int end_val, int increment, int jumps, int v_
   for ( int i = start_val / 2; i < end_val / 2; i = i + increment ) {
     for ( int j = 0; j < jumps; j++ ) {
       #ifdef DEBUG
-      Serial.println( "Jump # = [ ", j, " ]" );
+      Serial.print( "Jump # = [ "); Serial.print( j ); Serial.println( " ]" );
       #endif //DEBUG
       solenoidControl( i, v_level );
     }
@@ -80,9 +80,10 @@ void solenoidSweep( int start_val, int end_val, int increment, int jumps, int v_
  * Returns readings from linear potentiometer
  */
 int potRead( void ){
-  return analogRead( POT );
+  int value = analogRead( POT );
+  return value;
 
   #ifdef DEBUG
-  Serial.println( "Potentiometer reading = [ ", analogRead( POT ), " ]" );
+  Serial.print( "Potentiometer reading = [ " ); Serial.print( value ); Serial.println( " ]" );
   #endif // DEBUG
 }
