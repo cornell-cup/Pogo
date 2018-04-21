@@ -16,7 +16,7 @@ void setup() {
 }
 
 void loop() {
-  solenoidControl( 294, 100 );
+  //solenoidControl( 294, 100 );
   potRead();
 }
 
@@ -38,7 +38,7 @@ void solenoidControl( int onecycle, int v_level ) {
 
   // Actuate solenoid
   digitalWrite( LED_BUILTIN, HIGH );
-  analogWrite( CONTROL, v_level );
+  analogWrite( CONTROL, scaled_volts );
   delay( half_cycle );
 
   #ifdef DEBUG
@@ -47,7 +47,7 @@ void solenoidControl( int onecycle, int v_level ) {
 
   // De-actuate solenoid (solenoid lets go of what it's holding onto)
   digitalWrite( LED_BUILTIN, LOW );
-  analogWrite( CONTROL, v_level );
+  analogWrite( CONTROL, 0 );
   delay( half_cycle );
 }
 
@@ -81,9 +81,10 @@ void solenoidSweep( int start_val, int end_val, int increment, int jumps, int v_
  */
 int potRead( void ){
   int value = analogRead( POT );
-  return value;
-
+  
   #ifdef DEBUG
   Serial.print( "Potentiometer reading = [ " ); Serial.print( value ); Serial.println( " ]" );
   #endif // DEBUG
+  
+  return value;
 }
