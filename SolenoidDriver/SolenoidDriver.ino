@@ -1,4 +1,4 @@
-#define DEBUG       // define as "DEBUG" to go into debugging mode with Serial Monitor
+#define NOT_DEBUG       // define as "DEBUG" to go into debugging mode with Serial Monitor
 
 // Pin assignments
 const int POT = A2;     // Linear potentiometer
@@ -16,7 +16,7 @@ void setup() {
 }
 
 void loop() {
-  //solenoidControl( 294, 100 );
+  solenoidControl( 294, 100 );
   potRead();
 }
 
