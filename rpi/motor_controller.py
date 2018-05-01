@@ -1,7 +1,7 @@
 import serial
 import time
 
-s = serial.Serial('/dev/ttyACM0')
+s = serial.Serial('/dev/ttyACM1')
 print(s.isOpen())
 print(s.inWaiting())
 
@@ -13,7 +13,8 @@ while 1:
 	else:
 		s.write(input)
 		out = ''
-		time.sleep(1)
+		while s.inWaiting() == 0:
+			time.sleep(.001)
 		while s.inWaiting() > 0:
 			out+=s.read(1)
 		
