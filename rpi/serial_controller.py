@@ -8,6 +8,10 @@ s1 = serial.Serial('/dev/ttyACM1')
 s_motor = s0
 s_imu = s1
 
+imu_rotation = (0.0,0.0,0.0)
+imu_position = (0.0,0.0,0.0)
+motor_rpm = 0
+
 processMotorSerial = new ProcessSerial("motor", s_motor, processMotorPacket)
 processImuSerial = new ProcessSerial("imu", s_imu, processImuPacket)
 
@@ -51,11 +55,21 @@ class ProcessSerial():
                 self.buffer = []
             elif inByte == '\3':
                 self.processPacket(self.buffer)
+                self.reset()
             else:
                 if !self.hasStart:
                     1==1
-                elif inByte:
-                        
+                #the packet is too long, longer than any of our set packets
+                elif len(self.buffer) > 10:
+                    self.reset()
+                else:
+                    self.buffer += inByte
+
+
+    def reset():
+        self.buffer = []
+        self.hasStart = false
+        
                 
                 
         
