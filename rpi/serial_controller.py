@@ -1,5 +1,6 @@
 import serial
 import time
+import struct
 
 s0 = serial.Serial('/dev/ttyACM0')
 #s1 = serial.Serial('/dev/ttyACM1')
@@ -21,7 +22,7 @@ class ProcessSerial:
     self.name = name
     self.port = port
     self.processPacket = processPacket
-    self.buffer = []
+    self.buffer = bytearray()
     self.hasStart = False
     
     
@@ -29,24 +30,27 @@ class ProcessSerial:
     inByte = '0'
     while self.port.inWaiting() > 0:
       inByte = self.port.read(1)
-    if inByte == '\2':
-      self.hasStart = True
-      self.buffer = []
-    elif inByte == '\3':
-      self.processPacket(self.buffer)
-      self.reset()
-    else:
-      if not self.hasStart:
-        1==1
-        #the packet is too long, longer than any of our set packets
-      elif len(self.buffer) > 10:
+      print(inByte)
+      if inByte == b'\x02':
+        print("test")
+        self.hasStart = True
+        self.buffer = bytearray()
+      elif inByte == b'\x03':
+        print(len(self.buffer))
+        self.processPacket(self.buffer)
         self.reset()
       else:
-        self.buffer += inByte
+        if not self.hasStart:
+          1==1
+          #the packet is too long, longer than any of our set packets
+        elif len(self.buffer) > 20:
+          self.reset()
+        else:
+          self.buffer += inByte
 
 
   def reset(self):
-    self.buffer = []
+    self.buffer = bytearray()
     self.hasStart = False
 
   def closePort(self):
@@ -66,7 +70,7 @@ def processMotorPacket(packet):
     global motor_rpm
     motor_rpm = packet[1]
   else:
-    print (''.join(packet))
+    print (packet)
 
 def processImuPacket(packet):
   if not packet:
@@ -78,11 +82,17 @@ def processImuPacket(packet):
   elif True or packet[0] == 'R' and len(packet) == 7:
     global imu_position
     global imu_rotation
-    print (''.join(packet))
+    for byteval in packet:
+      print ('%02x' % byteval, end="")
+    print ("")
+    d = bytes(packet)
+    print(d)
+    test = struct.unpack('d', d)
+    print (test)
     imu_position = (packet[0],packet[0],packet[0])
     imu_rotation = (packet[0],packet[0],packet[0])
   else:
-    print (''.join(packet))
+    print (packet)
 
 
 
