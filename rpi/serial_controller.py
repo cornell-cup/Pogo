@@ -12,6 +12,8 @@ s_imu = s0
 
 global imu_position
 global imu_rotation
+global test_val
+test_val = 0.0
 imu_rotation = (0.0,0.0,0.0)
 imu_position = (0.0,0.0,0.0)
 motor_rpm = 0
@@ -24,34 +26,40 @@ class ProcessSerial:
     self.processPacket = processPacket
     self.buffer = bytearray()
     self.hasStart = False
+    self.packetSize = -1
     
     
   def readSerial(self):
     inByte = '0'
     while self.port.inWaiting() > 0:
       inByte = self.port.read(1)
-      print(inByte)
-      if inByte == b'\x02':
-        print("test")
-        self.hasStart = True
-        self.buffer = bytearray()
-      elif inByte == b'\x03':
-        print(len(self.buffer))
+      #print(inByte)
+      
+      if not self.hasStart:
+        if inByte == b'\x02':
+          self.hasStart = True
+          self.packetSize = -1
+          self.buffer = bytearray()
+        else:
+          print ("Has noise")
+      #the packet is too long, longer than any of our set packets
+      elif len(self.buffer) > 20:
+        self.reset()
+      elif self.packetSize == -1:
+        self.packetSize = int.from_bytes(inByte, byteorder='little', signed=False)
+      else:
+        self.buffer += inByte
+        
+      if self.packetSize != -1 and len(self.buffer) == self.packetSize :
         self.processPacket(self.buffer)
         self.reset()
-      else:
-        if not self.hasStart:
-          1==1
-          #the packet is too long, longer than any of our set packets
-        elif len(self.buffer) > 20:
-          self.reset()
-        else:
-          self.buffer += inByte
+      
 
 
   def reset(self):
     self.buffer = bytearray()
     self.hasStart = False
+    self.packetSize = -1
 
   def closePort(self):
     self.port.close()
@@ -79,16 +87,14 @@ def processImuPacket(packet):
     print ("Error: Packet Empty")
   elif packet[0] == 'Q':
     print ("Imu shutdown packet")
-  elif True or packet[0] == 'R' and len(packet) == 7:
+  elif packet[0] == 1 and len(packet) == 9:
     global imu_position
     global imu_rotation
-    for byteval in packet:
-      print ('%02x' % byteval, end="")
-    print ("")
-    d = bytes(packet)
-    print(d)
+    global test_val
+    d = bytes(packet[1:9])
     test = struct.unpack('d', d)
-    print (test)
+    #print (test)
+    test_val = test
     imu_position = (packet[0],packet[0],packet[0])
     imu_rotation = (packet[0],packet[0],packet[0])
   else:
@@ -113,7 +119,7 @@ while 1:
   for sr in SerialReaders:
     sr.readSerial()
   #use info to calculate what to return
-
+  print (test_val)
   #print (imu_position)
   #print imu_rotation
   #write serial to devices
