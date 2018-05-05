@@ -37,9 +37,8 @@ class ProcessSerial:
       
       if not self.hasStart:
         if inByte == b'\x02':
+          self.reset()
           self.hasStart = True
-          self.packetSize = -1
-          self.buffer = bytearray()
         else:
           print ("Has noise")
       #the packet is too long, longer than any of our set packets
