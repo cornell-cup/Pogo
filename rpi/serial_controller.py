@@ -9,6 +9,7 @@ s_motor = s0
 s_imu = s1
 
 processMotorSerial = new ProcessSerial("motor", s_motor, processMotorPacket)
+processImuSerial = new ProcessSerial("imu", s_imu, processImuPacket)
 
 def processMotorPacket(packet):
     if !packet:
@@ -26,7 +27,7 @@ def processImuPacket(packet):
     elif len(packet) == 0:
         print "Error: Packet Empty"
     elif packet[0] == 'Q':
-        print "Motor shutdown packet"
+        print "Imu shutdown packet"
     else:
         print ''.join(packet)
 
@@ -40,15 +41,21 @@ class ProcessSerial():
         self.processPacket = processPacket
         self.buffer = []
         self.hasStart = false
-        self.hasEnd = false
         
         
     def readSerial():
-	while s.inWaiting() > 0:
-	    inByte = s.read(1)
+	while self.port.inWaiting() > 0:
+	    inByte = self.port.read(1)
 	    if inByte == '\2':
                 self.hasStart = true
                 self.buffer = []
+            elif inByte == '\3':
+                self.processPacket(self.buffer)
+            else:
+                if !self.hasStart:
+                    1==1
+                elif inByte:
+                        
                 
                 
         
@@ -57,19 +64,12 @@ class ProcessSerial():
 
 
 while 1:
-	input = raw_input(">> ")
-	if input == 'exit':
-		s.close()
-		exit()
-	else:
-		s.write(input)
-		out = ''
-		while s.inWaiting() == 0:
-			time.sleep(.001)
-		while s.inWaiting() > 0:
-			out+=s.read(1)
-		
-		if out != '':
-			print ">>" + out
+    #read from devices to update info
+    #use info to calculate what to return
+    #write serial to devices
+
+
+
+    
 
 s.close()
