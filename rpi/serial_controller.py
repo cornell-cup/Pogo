@@ -35,6 +35,11 @@ def processImuPacket(packet):
         print "Error: Packet Empty"
     elif packet[0] == 'Q':
         print "Imu shutdown packet"
+    elif packet[0] == 'R' and len(packet) == 7:
+        global imu_position
+        global imu_rotation
+        imu_position = (packet[1],packet[2],packet[3])
+        imu_rotation = (packet[4],packet[5],packet[3])
     else:
         print ''.join(packet)
 
