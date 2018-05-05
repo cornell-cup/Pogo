@@ -22,6 +22,9 @@ def processMotorPacket(packet):
         print "Error: Packet Empty"
     elif packet[0] == 'Q':
         print "Motor shutdown packet"
+    elif packet[0] == 'R' and len(packet) == 2:
+        global motor_rpm
+        motor_rpm = packet[1]
     else:
         print ''.join(packet)
 
