@@ -5,6 +5,7 @@ s0 = serial.Serial('/dev/ttyACM0')
 s1 = serial.Serial('/dev/ttyACM1')
 
 #Reassign as necessary, plug them in the order you want.
+#Use dmesg command in the terminal to determine which one is which.
 s_motor = s0
 s_imu = s1
 
@@ -14,6 +15,13 @@ motor_rpm = 0
 
 processMotorSerial = new ProcessSerial("motor", s_motor, processMotorPacket)
 processImuSerial = new ProcessSerial("imu", s_imu, processImuPacket)
+
+SerialReaders = []
+SerialReaders += processMotorSerial
+SerialReaders += processImuSerial
+#SerialReaders += processRadioSerial
+#SerialReaders += processSolenoidSerial
+
 
 def processMotorPacket(packet):
     if !packet:
@@ -44,7 +52,7 @@ def processImuPacket(packet):
         print ''.join(packet)
 
 
-class ProcessSerial():
+class ProcessSerial:
 
 
     def __init__(self, name, port, processPacket):
@@ -77,7 +85,9 @@ class ProcessSerial():
     def reset():
         self.buffer = []
         self.hasStart = false
-        
+
+    def closePort():
+        self.port.close()
                 
                 
         
@@ -87,11 +97,14 @@ class ProcessSerial():
 
 while 1:
     #read from devices to update info
+    for sr in SerialReader:
+        sr.readSerial()
     #use info to calculate what to return
     #write serial to devices
-
+    
 
 
     
 
-s.close()
+for sr in SerialReader:
+    sr.closePort()
