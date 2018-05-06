@@ -26,8 +26,7 @@ bool hasStart = false;
 int bufferPos = 0;
 int packetSize = -1;
 
-int count = 1;
-double test = 1.1;
+int receivedPackets = 0;
 
 
 
@@ -66,10 +65,16 @@ void resetSerial(){
   
 }
 
-void processPacket(char[] packet){
-  ;
+void processPacket(){
+  //Use serialBuffer
+  //TODO for each;
 }
 
+void setup() {
+  Serial.begin( 9600 );
+  Serial.flush();
+  delay( 1000 );
+}
 
 
 void loop() {
@@ -80,7 +85,6 @@ void loop() {
       if ( inByte == '\2' ){
         resetSerial();
         hasStart = true;
-        //memset(serialBuffer, 0, sizeof serialBuffer); #don't really need this?
       } else {
         //Serial.print("Has Noise");
         ;
@@ -93,25 +97,20 @@ void loop() {
       serialBuffer[bufferPos++] = inByte;
     }
 
-    if ( self.packetSize != -1 && bufferPos == packetSize + 1 ){
-      self.
+    if ( packetSize != -1 && bufferPos == packetSize + 1 ){
+      processPacket();
+      receivedPackets++;
+      resetSerial();
     }
-
-
-
-    
   }
 
 
 
   //Write output back to master
   if(OutputSerial){
-    test += .01;
     Serial.print('\2');
     Serial.print('\x09');
     Serial.print('\x01');
-  //  Serial.print(count++);
-    serialPrintDouble(test);
   }
   
   delay(10);
