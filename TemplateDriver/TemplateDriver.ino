@@ -1,12 +1,12 @@
 
-#define OutputSerial true
+#define OutputSerial false
 #define MaxPacketSize 40
 
 char inByte = 0;   // for incoming serial data
 
 union DConv{
    double x;
-   unsigned char c[sizeof (double)]; 
+   uint8_t c[sizeof (double)]; 
 };
 union DConv r_dconv;
 union DConv w_dconv;
@@ -15,7 +15,7 @@ union DConv w_dconv;
 
 union IConv{
    int x;
-   unsigned char c[sizeof (int)]; 
+   uint8_t c[sizeof (int)]; 
 };
 union IConv r_iconv;
 union IConv w_iconv;
@@ -68,6 +68,10 @@ void resetSerial(){
 void processPacket(){
   //Use serialBuffer
   //TODO for each;
+  int test_int = serialReadInt(0);
+  double test_float = serialReadDouble(4);
+  Serial.println(test_int);
+  Serial.println(test_float);
 }
 
 void setup() {
@@ -79,8 +83,9 @@ void setup() {
 
 void loop() {
   //Read Serial for any updates from Master
-  while (false && Serial.available() > 0) {
+  while ( Serial.available() > 0) {
     inByte = Serial.read();
+    Serial.print(inByte);
     if (!hasStart){
       if ( inByte == '\2' ){
         resetSerial();
@@ -97,7 +102,7 @@ void loop() {
       serialBuffer[bufferPos++] = inByte;
     }
 
-    if ( packetSize != -1 && bufferPos == packetSize + 1 ){
+    if ( packetSize != -1 && bufferPos == packetSize ){
       processPacket();
       receivedPackets++;
       resetSerial();
