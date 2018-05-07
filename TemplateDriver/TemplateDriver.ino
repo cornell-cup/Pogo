@@ -10,7 +10,14 @@ union DConv{
 };
 union DConv r_dconv;
 union DConv w_dconv;
-        
+
+
+union FConv{
+   float x;
+   uint8_t c[sizeof (float)]; 
+};
+union FConv r_fconv;
+union FConv w_fconv;
 
 
 union IConv{
@@ -37,6 +44,13 @@ void serialPrintDouble(double val){
   }
 }
 
+void serialPrintFloat(float val){
+  w_fconv.x = val;
+  for (unsigned i = 0; i < sizeof (float); i++){
+    Serial.write(w_fconv.c[i]);
+  }
+}
+
 void serialPrintInt(int val){
   w_iconv.x = val;
   for (unsigned i = 0; i < sizeof (int); i++){
@@ -49,6 +63,13 @@ double serialReadDouble(int bufferPos){
     r_dconv.c[i] = serialBuffer[bufferPos + i];
   }
   return r_dconv.x;
+}
+
+float serialReadFloat(int bufferPos){
+  for (unsigned i = 0; i < sizeof (float); i++) {
+    r_fconv.c[i] = serialBuffer[bufferPos + i];
+  }
+  return r_fconv.x;
 }
 
 int serialReadInt(int bufferPos){
@@ -113,7 +134,9 @@ void loop() {
 
   //Write output back to master
   if(OutputSerial){
+    //First byte is always '\2'
     Serial.print('\2');
+    //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
     Serial.print('\x09');
     Serial.print('\x01');
   }
