@@ -42,7 +42,7 @@ class ProcessSerial:
         else:
           print ("Has noise")
       #the packet is too long, longer than any of our set packets
-      elif len(self.buffer) > 20:
+      elif len(self.buffer) > 100:
         self.reset()
       elif self.packetSize == -1:
         self.packetSize = int.from_bytes(inByte, byteorder='little', signed=False)
