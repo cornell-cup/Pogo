@@ -10,12 +10,12 @@ s0 = serial.Serial('/dev/ttyACM0')
 s_motor = s0
 s_imu = s0
 
-global imu_position
-global imu_rotation
-global test_val
-test_val = 0.0
-imu_rotation = (0.0,0.0,0.0)
-imu_position = (0.0,0.0,0.0)
+global imu_euler
+global imu_gyro
+global imu_linaccel
+imu_euler = (0.0,0.0,0.0)
+imu_gyro = (0.0,0.0,0.0)
+imu_linaccel = (0.0,0.0,0.0)
 motor_rpm = 0
 
 class ProcessSerial:
@@ -86,16 +86,23 @@ def processImuPacket(packet):
     print ("Error: Packet Empty")
   elif packet[0] == 'Q':
     print ("Imu shutdown packet")
-  elif packet[0] == 1 and len(packet) == 9:
-    global imu_position
-    global imu_rotation
-    global test_val
-    d = bytes(packet[1:9])
-    test = struct.unpack('d', d)
-    #print (test)
-    test_val = test
-    imu_position = (packet[0],packet[0],packet[0])
-    imu_rotation = (packet[0],packet[0],packet[0])
+  elif packet[0] == 1 and len(packet) == 73:
+    global imu_euler
+    global imu_gyro
+    global imu_linaccel
+    euler_x = struct.unpack('d', bytes(packet[1:9]))
+    euler_y = struct.unpack('d', bytes(packet[9:17]))
+    euler_z = struct.unpack('d', bytes(packet[17:25]))
+    imu_euler = (euler_x,euler_y,euler_z)
+    gyro_x = struct.unpack('d', bytes(packet[25:33]))
+    gyro_y = struct.unpack('d', bytes(packet[33:41]))
+    gyro_z = struct.unpack('d', bytes(packet[41:49]))
+    imu_gyro = (gyro_x,gyro_y,gyro_z)
+    linacc_x = struct.unpack('d', bytes(packet[49:57]))
+    linacc_y = struct.unpack('d', bytes(packet[57:65]))
+    linacc_z = struct.unpack('d', bytes(packet[65:73]))
+    imu_linaccel = (linacc_x,linacc_y,linacc_z)
+
   else:
     print (packet)
 
@@ -118,7 +125,11 @@ while 1:
   for sr in SerialReaders:
     sr.readSerial()
   #use info to calculate what to return
-  print (test_val)
+
+  global imu_euler
+  global imu_gyro
+  global imu_linaccel  
+  print (imu_euler)
   #print (imu_position)
   #print imu_rotation
   #write serial to devices
