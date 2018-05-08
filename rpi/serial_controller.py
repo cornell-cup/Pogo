@@ -2,7 +2,7 @@ import serial
 import time
 import struct
 
-s0 = serial.Serial('/dev/ttyACM0')
+s0 = serial.Serial('/dev/ttyACM0', 115200)
 #s1 = serial.Serial('/dev/ttyACM1')
 
 #Reassign as necessary, plug them in the order you want.
