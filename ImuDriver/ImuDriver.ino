@@ -1,6 +1,11 @@
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BNO055.h>
 
-#define OutputSerial false
+#define OutputSerial true
 #define MaxPacketSize 40
+
+Adafruit_BNO055 bno = Adafruit_BNO055(55);
+
 
 char inByte = 0;   // for incoming serial data
 
@@ -89,15 +94,28 @@ void resetSerial(){
 void processPacket(){
   //Use serialBuffer
   //TODO for each;
-  int test_int = serialReadInt(0);
-  double test_float = serialReadDouble(4);
-  Serial.println(test_int);
-  Serial.println(test_float);
+//  int test_int = serialReadInt(0);
+//  double test_float = serialReadDouble(4);
+//  Serial.println(test_int);
+//  Serial.println(test_float);
 }
 
 void setup() {
-  Serial.begin( 9600 );
+  Serial.begin( 115200 );
   Serial.flush();
+  /* Initialise the sensor */
+  if(!bno.begin())
+  {
+    /* There was a problem detecting the BNO055 ... check your connections */
+    while(1){
+      Serial.print('\2');
+      Serial.print('\x01');
+      Serial.print('E');
+      delay(10);
+    }
+  }
+  bno.setExtCrystalUse(true);
+
   delay( 1000 );
 }
 
@@ -130,17 +148,32 @@ void loop() {
     }
   }
 
-
+  
+  sensors_event_t event;
+  bno.getEvent(&event);
 
   //Write output back to master
   if(OutputSerial){
     //First byte is always '\2'
     Serial.print('\2');
     //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
-    Serial.print('\x09');
+    Serial.print('\x49');
     Serial.print('\x01');
+    imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+    serialPrintDouble(euler.x());    
+    serialPrintDouble(euler.y());    
+    serialPrintDouble(euler.z());
+    imu::Vector<3> gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+    serialPrintDouble(gyro.x());    
+    serialPrintDouble(gyro.y());    
+    serialPrintDouble(gyro.z());    
+    imu::Vector<3> linacc = bno.getVector(Adafruit_BNO055::VECTOR_LINEARACCEL);
+    serialPrintDouble(linacc.x());    
+    serialPrintDouble(linacc.y());    
+    serialPrintDouble(linacc.z());        
+       
   }
   
-  delay(10);
+  //delay(1);
 }
 
