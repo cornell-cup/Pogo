@@ -84,8 +84,8 @@ def processImuPacket(packet):
     print ("Error: Packet Empty")
   elif len(packet) == 0:
     print ("Error: Packet Empty")
-  elif packet[0] == 'Q':
-    print ("Imu shutdown packet")
+  elif packet[0] == '\x45':
+    print ("Imu Error")
   elif packet[0] == 1 and len(packet) == 73:
     global imu_euler
     global imu_gyro
