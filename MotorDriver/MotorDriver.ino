@@ -4,6 +4,7 @@
 #define OutputSerial false
 #define MaxPacketSize 40
 #define HasHeartbeat true
+#define BreakCurrent 4.0
 
 struct bldcMeasure measuredValues;
 
@@ -11,6 +12,7 @@ unsigned long time;
 unsigned long prev_time;
 unsigned long tx_time;
 unsigned long heartbeat_time;
+unsigned long last_received;
 unsigned long count;
 
 //Used to determine if you are waiting for a rpm packet to come back from the motor controller.
@@ -109,9 +111,28 @@ void resetSerial(){
   
 }
 
+void resetAll(){
+  resetSerial();
+  time = millis();
+  prev_time = time;
+  tx_time = time;
+  heartbeat_time = time;
+  last_received = time;
+  count = 0;
+
+  read_rpm = false;
+  motor_on = false;
+  m_on_ack = false;
+  m_off_ack = false;
+  emergency_shutoff = false;
+  current = 0.0;
+  inByte = 0;   // for incoming serial data
+  
+  VescUartSetCurrentBrake(BreakCurrent);
+
+}
+
 void processPacket(){
-  //Use serialBuffer
-  //TODO for each;
   if (serialBuffer[0] == '\1' && packetSize == 2){
     bool com = serialBuffer[1] == '\1';
     if ( com != motor_on ) {
@@ -126,6 +147,7 @@ void processPacket(){
   else if (serialBuffer[0] == '\2' && packetSize == 5){
     current = serialReadFloat(1);    
   }
+  last_received = time;
 }
 
 void setup() {
@@ -139,6 +161,10 @@ void setup() {
 
 
 void loop() {
+  prev_time = time;
+  time = millis();
+  //Serial.println( time - prev_time ); //Used to print loop frequency.
+  
   //Read Serial for any updates from Master
   while ( Serial.available() > 0) {
     inByte = Serial.read();
@@ -181,11 +207,6 @@ void loop() {
   tachometerAbs: 2  
   */
 
-  prev_time = time;
-  time = millis();
-  //Serial.println( time - prev_time );
-
-  
   if( !read_rpm ) {
     //We send a request to the motor controller to send us back data.
     //VescUartGetValue(measuredValues);
@@ -205,6 +226,15 @@ void loop() {
         read_rpm = false;
       }
     }
+  }
+
+  //If we have not received an update from the rpi in 100ms, we shut the motor off.
+  if( motor_on && time - last_received > 100 ) {
+    emergency_shutoff = true;
+    Serial.print('\2');         //Start Packet
+    Serial.print('\x01');       //One Bytes
+    Serial.print('\x00');       //Packet Id:0
+    VescUartSetCurrentBrake(BreakCurrent);
   }
   
 
