@@ -4,6 +4,9 @@
 #define OutputSerial false
 #define MaxPacketSize 40
 #define HasHeartbeat true
+#define HeartbeatTime 100
+#define ShutoffTime 100
+#define ReadMotorControllerTime 160
 #define BreakCurrent 4.0
 
 struct bldcMeasure measuredValues;
@@ -215,7 +218,7 @@ void loop() {
   }
   else {
     //We need to wait for the packet to come back before we read it.
-    if( false &&  time - tx_time  > 160 ) {
+    if( false &&  time - tx_time  > ReadMotorControllerTime ) {
       if( VescUartReadValue(measuredValues) ) {
         Serial.print("Loop: "); Serial.println(count++);
         SerialPrint(measuredValues);
@@ -229,17 +232,19 @@ void loop() {
   }
 
   //If we have not received an update from the rpi in 100ms, we shut the motor off.
-  if( motor_on && time - last_received > 100 ) {
+  if( motor_on && time - last_received > ShutoffTime ) {
     emergency_shutoff = true;
     Serial.print('\2');         //Start Packet
     Serial.print('\x01');       //One Bytes
     Serial.print('\x00');       //Packet Id:0
     VescUartSetCurrentBrake(BreakCurrent);
   }
-  
 
-  VescUartSetCurrent(current);
-
+  //Actually control the motor current
+  if( !motor_on ) {
+    current = 0.0;
+  }
+  VescUartSetCurrent(current);  
 
   //Write output back to master
   if(OutputSerial){
@@ -251,7 +256,7 @@ void loop() {
 
     //We output a heartbeat so that the rpi knows our status.
     //If no signal is detected within 200 ms, we know that the arduino is unresponsive.
-    if( HasHeartbeat && time - heartbeat_time > 100 ){
+    if( HasHeartbeat && time - heartbeat_time > HeartbeatTime ){
       heartbeat_time = time;
       Serial.print('\2');         //Start Packet
       Serial.print('\x02');       //Two Bytes
