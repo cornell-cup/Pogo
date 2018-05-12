@@ -111,10 +111,15 @@ void processPacket(){
   //Use serialBuffer
   //TODO for each;
   if (serialBuffer[0] == '\1' && packetSize == 2){
-    motor_on = serialBuffer[1] == '\1';    
-  }
-  else if (serialBuffer[0] == '\2' && packetSize == 5){
-    current = serialReadFloat(1);    
+    bool com = serialBuffer[1] == '\1';
+    if ( com != motor_on ) {
+      motor_on = com;
+      if ( motor_on ) { 
+        m_off_ack = false;      
+      } else {
+        m_on_ack = false;
+      }
+    }
   }
   else if (serialBuffer[0] == '\2' && packetSize == 5){
     current = serialReadFloat(1);    
@@ -201,34 +206,46 @@ void loop() {
   }
   
 
-  VescUartSetCurrent(5);
+  VescUartSetCurrent(current);
 
 
   //Write output back to master
   if(OutputSerial){
+    
+    //First byte is always '\2'
+    //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
+    //Third byte is the packet id.
+    //Rest of the bytes is payload.
 
     //We output a heartbeat so that the rpi knows our status.
     //If no signal is detected within 200 ms, we know that the arduino is unresponsive.
     if( HasHeartbeat && time - heartbeat_time > 100 ){
       heartbeat_time = time;
-      Serial.print('\2');
-      Serial.print('\x02');
-      Serial.print('\x01');
+      Serial.print('\2');         //Start Packet
+      Serial.print('\x02');       //Two Bytes
+      Serial.print('\x01');       //Packet Id:1
       if ( motor_on ) {
-        Serial.print('\x01');  
+        Serial.print('\x01');     //Motor on
       } else { 
-        Serial.print('\x00');
+        Serial.print('\x00');     //Motor off
       }
     }
 
     //We need to ack that we received motor_on and motor_off commands.
-      
-      
-    //First byte is always '\2'
-    Serial.print('\2');
-    //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
-    Serial.print('\x09');
-    Serial.print('\x01');
+    if( !motor_on && !m_off_ack ) {
+      Serial.print('\2');         //Start Packet
+      Serial.print('\x02');       //Two Bytes
+      Serial.print('\x02');       //Packet Id:2
+      Serial.print('\x00');       //Acknowledge we received a motor off packet.
+      m_off_ack = true;           //Don't need to repeatedly send it. If packet is lost, heartbeat will compensate.
+    }
+    if( motor_on  && !m_on_ack ) {
+      Serial.print('\2');         //Start Packet
+      Serial.print('\x02');       //Two Bytes
+      Serial.print('\x02');       //Packet Id:2
+      Serial.print('\x01');       //Acknowledge we received a motor on packet.
+      m_on_ack = true;            //Don't need to repeatedly send it. If packet is lost, heartbeat will compensate.
+    }
   }
   
 //  delay(10);/
