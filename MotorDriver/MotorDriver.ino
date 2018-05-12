@@ -3,26 +3,24 @@
 
 #define OutputSerial false
 #define MaxPacketSize 40
-
+#define HasHeartbeat true
 
 struct bldcMeasure measuredValues;
 
 unsigned long time;
 unsigned long prev_time;
 unsigned long tx_time;
+unsigned long heartbeat_time;
 unsigned long count;
 
+//Used to determine if you are waiting for a rpm packet to come back from the motor controller.
 bool read_rpm = false;
-bool isRunning = false;
+//Our motor should be off until it receives an input from the rpi.
+bool motor_on = false;
+bool m_on_ack = false;
+bool m_off_ack = false;
 
-float error = 0.0;
-
-#define MAX_CURRENT 20.0f
-#define CURRENT_ACCEL 0.05f
-#define CURRENT_DECEL 0.20f
 float current = 0.0;
-bool accel = true;
-
 
 char inByte = 0;   // for incoming serial data
 
@@ -112,8 +110,14 @@ void resetSerial(){
 void processPacket(){
   //Use serialBuffer
   //TODO for each;
-  if (serialBuffer[0] == '\1' && packetSize == 5){
-    error = serialReadFloat(1);    
+  if (serialBuffer[0] == '\1' && packetSize == 2){
+    motor_on = serialBuffer[1] == '\1';    
+  }
+  else if (serialBuffer[0] == '\2' && packetSize == 5){
+    current = serialReadFloat(1);    
+  }
+  else if (serialBuffer[0] == '\2' && packetSize == 5){
+    current = serialReadFloat(1);    
   }
 }
 
@@ -123,7 +127,7 @@ void setup() {
   Serial.flush();
   //Serial1 is to the motor controller
   Serial1.begin( 9600 );
-  delay( 1000 );
+  delay( 100 );
 }
 
 
@@ -195,32 +199,31 @@ void loop() {
       }
     }
   }
+  
 
-  if (accel) {
-    if (current < MAX_CURRENT - 0.5f) {
-      current += CURRENT_ACCEL;
-    }
-    else {
-      accel = false;
-    }
-    VescUartSetCurrent(current);
-  }
-  else {
-    if (current > -MAX_CURRENT + 0.5f) {
-      current -= CURRENT_ACCEL;
-    }
-    else {
-      accel = true;
-    }
-    VescUartSetCurrent(current);
-
-  }
-  Serial.println(current);
-
+  VescUartSetCurrent(5);
 
 
   //Write output back to master
   if(OutputSerial){
+
+    //We output a heartbeat so that the rpi knows our status.
+    //If no signal is detected within 200 ms, we know that the arduino is unresponsive.
+    if( HasHeartbeat && time - heartbeat_time > 100 ){
+      heartbeat_time = time;
+      Serial.print('\2');
+      Serial.print('\x02');
+      Serial.print('\x01');
+      if ( motor_on ) {
+        Serial.print('\x01');  
+      } else { 
+        Serial.print('\x00');
+      }
+    }
+
+    //We need to ack that we received motor_on and motor_off commands.
+      
+      
     //First byte is always '\2'
     Serial.print('\2');
     //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
