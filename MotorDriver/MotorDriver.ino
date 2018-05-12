@@ -19,6 +19,8 @@ bool read_rpm = false;
 bool motor_on = false;
 bool m_on_ack = false;
 bool m_off_ack = false;
+bool emergency_shutoff = false;
+
 
 float current = 0.0;
 
@@ -224,10 +226,12 @@ void loop() {
       Serial.print('\2');         //Start Packet
       Serial.print('\x02');       //Two Bytes
       Serial.print('\x01');       //Packet Id:1
-      if ( motor_on ) {
+      if( emergency_shutoff ) {
+        Serial.print('\x00');     //Emergency Shutoff
+      } else if( motor_on ) {
         Serial.print('\x01');     //Motor on
       } else { 
-        Serial.print('\x00');     //Motor off
+        Serial.print('\x02');     //Motor off
       }
     }
 
