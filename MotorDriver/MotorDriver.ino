@@ -3,26 +3,32 @@
 
 #define OutputSerial false
 #define MaxPacketSize 40
-
+#define HasHeartbeat true
+#define HeartbeatTime 100
+#define HasShutoffTimeout true
+#define ShutoffTime 100
+#define ReadMotorControllerTime 160
+#define BreakCurrent 4.0
 
 struct bldcMeasure measuredValues;
 
 unsigned long time;
 unsigned long prev_time;
 unsigned long tx_time;
+unsigned long heartbeat_time;
+unsigned long last_received;
 unsigned long count;
 
+//Used to determine if you are waiting for a rpm packet to come back from the motor controller.
 bool read_rpm = false;
-bool isRunning = false;
+//Our motor should be off until it receives an input from the rpi.
+bool motor_on = false;
+bool m_on_ack = false;
+bool m_off_ack = false;
+bool emergency_shutoff = false;
 
-float error = 0.0;
-
-#define MAX_CURRENT 20.0f
-#define CURRENT_ACCEL 0.05f
-#define CURRENT_DECEL 0.20f
 float current = 0.0;
-bool accel = true;
-
+int rpm = 0;
 
 char inByte = 0;   // for incoming serial data
 
@@ -109,12 +115,58 @@ void resetSerial(){
   
 }
 
+void resetAll(){
+  resetSerial();
+  time = millis();
+  prev_time = time;
+  tx_time = time;
+  heartbeat_time = time;
+  last_received = time;
+  count = 0;
+
+  read_rpm = false;
+  motor_on = false;
+  m_on_ack = false;
+  m_off_ack = false;
+  emergency_shutoff = false;
+  current = 0.0;
+  inByte = 0;   // for incoming serial data
+  
+  VescUartSetCurrentBrake(BreakCurrent);
+
+}
+
+void shutoff(){
+  emergency_shutoff = true;
+  VescUartSetCurrentBrake(BreakCurrent);
+  current = 0;
+  motor_on = false;
+  Serial.print('\2');         //Start Packet
+  Serial.print('\x01');       //One Bytes
+  Serial.print('\x00');       //Packet Id:0
+}
+
+//Packets:
+//0 -> Emergency Shutoff
+//1 -> Motor on/off
+//2 -> Current Control
 void processPacket(){
-  //Use serialBuffer
-  //TODO for each;
-  if (serialBuffer[0] == '\1' && packetSize == 5){
-    error = serialReadFloat(1);    
+  if (serialBuffer[0] == '\0' && packetSize == 1){
+    shutoff();
+  } else if (serialBuffer[0] == '\1' && packetSize == 2){
+    bool com = serialBuffer[1] == '\1';
+    if ( com != motor_on ) {
+      motor_on = com;
+      if ( motor_on ) { 
+        m_off_ack = false;      
+      } else {
+        m_on_ack = false;
+      }
+    }
+  } else if (serialBuffer[0] == '\2' && packetSize == 5){
+    current = serialReadFloat(1);    
   }
+  last_received = time;
 }
 
 void setup() {
@@ -123,11 +175,15 @@ void setup() {
   Serial.flush();
   //Serial1 is to the motor controller
   Serial1.begin( 9600 );
-  delay( 1000 );
+  delay( 100 );
 }
 
 
 void loop() {
+  prev_time = time;
+  time = millis();
+  //Serial.println( time - prev_time ); //Used to print loop frequency.
+  
   //Read Serial for any updates from Master
   while ( Serial.available() > 0) {
     inByte = Serial.read();
@@ -170,23 +226,19 @@ void loop() {
   tachometerAbs: 2  
   */
 
-  prev_time = time;
-  time = millis();
-  //Serial.println( time - prev_time );
-
-  
   if( !read_rpm ) {
     //We send a request to the motor controller to send us back data.
-    //VescUartGetValue(measuredValues);
+    VescUartGetValue(measuredValues);
     tx_time = time;  
     read_rpm = true;
   }
   else {
     //We need to wait for the packet to come back before we read it.
-    if( false &&  time - tx_time  > 160 ) {
+    if( time - tx_time  > ReadMotorControllerTime ) {
       if( VescUartReadValue(measuredValues) ) {
-        Serial.print("Loop: "); Serial.println(count++);
-        SerialPrint(measuredValues);
+        //Serial.print("Loop: "); Serial.println(count++);
+        //SerialPrint(measuredValues);
+        rpm = measuredValues.rpm;
         read_rpm = false;
       }
       else {
@@ -196,36 +248,73 @@ void loop() {
     }
   }
 
-  if (accel) {
-    if (current < MAX_CURRENT - 0.5f) {
-      current += CURRENT_ACCEL;
-    }
-    else {
-      accel = false;
-    }
-    VescUartSetCurrent(current);
+  //If we have not received an update from the rpi in 100ms, we shut the motor off.
+  if( HasShutoffTimeout && motor_on && time - last_received > ShutoffTime ) {
+    shutoff();
   }
-  else {
-    if (current > -MAX_CURRENT + 0.5f) {
-      current -= CURRENT_ACCEL;
-    }
-    else {
-      accel = true;
-    }
-    VescUartSetCurrent(current);
 
+  //Actually control the motor current
+  if( !motor_on ) {
+    current = 0.0;
   }
-  Serial.println(current);
+  if( !emergency_shutoff ) {
+    VescUartSetCurrent(current);    
+  } else {
+    VescUartSetCurrentBrake(BreakCurrent);
+  }
 
-
-
+  
   //Write output back to master
   if(OutputSerial){
+    
     //First byte is always '\2'
-    Serial.print('\2');
     //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
-    Serial.print('\x09');
-    Serial.print('\x01');
+    //Third byte is the packet id.
+    //Rest of the bytes is payload.
+
+    //Packets Out
+    //0 -> Emergency Shutoff
+    //1 -> Heartbeat
+    //2 -> Command Ack
+    //3 -> RPM
+
+    //We output a heartbeat so that the rpi knows our status.
+    //If no signal is detected within 200 ms, we know that the arduino is unresponsive.
+    if( HasHeartbeat && time - heartbeat_time > HeartbeatTime ){
+      heartbeat_time = time;
+      Serial.print('\2');         //Start Packet
+      Serial.print('\x02');       //Two Bytes
+      Serial.print('\x01');       //Packet Id:1
+      if( emergency_shutoff ) {
+        Serial.print('\x00');     //Emergency Shutoff
+      } else if( motor_on ) {
+        Serial.print('\x01');     //Motor on
+      } else { 
+        Serial.print('\x02');     //Motor off
+      }
+    }
+
+    //We need to ack that we received motor_on and motor_off commands.
+    if( !motor_on && !m_off_ack ) {
+      Serial.print('\2');         //Start Packet
+      Serial.print('\x02');       //Two Bytes
+      Serial.print('\x02');       //Packet Id:2
+      Serial.print('\x00');       //Acknowledge we received a motor off packet.
+      m_off_ack = true;           //Don't need to repeatedly send it. If packet is lost, heartbeat will compensate.
+    }
+    if( motor_on  && !m_on_ack ) {
+      Serial.print('\2');         //Start Packet
+      Serial.print('\x02');       //Two Bytes
+      Serial.print('\x02');       //Packet Id:2
+      Serial.print('\x01');       //Acknowledge we received a motor on packet.
+      m_on_ack = true;            //Don't need to repeatedly send it. If packet is lost, heartbeat will compensate.
+    }
+
+    //Print RPM every cycle
+    Serial.print('\2');           //Start Packet
+    Serial.print('\x05');         //Five Bytes
+    Serial.print('\x03');         //Packet Id:3
+    serialPrintInt(rpm);          //Motor RPM
   }
   
 //  delay(10);/
