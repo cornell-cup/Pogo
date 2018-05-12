@@ -32,9 +32,14 @@ uint8_t pot;
 uint8_t rwStart;
 uint8_t jumpStart;
 bool powerOff;
+bool shutdownMet;
+bool shutdownZ;
+
 
 void setup()
 {
+  shutdownMet = false;
+  shutdownZ = false;
   pot = 0;
   powerOff = false;
   XJoystick = 0;
@@ -93,20 +98,6 @@ void setup()
 
 void loop()
 {
-
-  //determining if the shutdown condition is met
-  powerOff = false;
-  int c = 0;
-  while (analogRead(A2) < 20 && analogRead(A1) < 20) {
-    c++;
-    if (c > 100000) {
-      powerOff = true;
-      rwStart = 0;
-      jumpStart = 0;
-      break;
-    }
-  }
-
   //determining whether or not c or z button is pressed
   C = 0;
   Z = 0;
@@ -116,23 +107,88 @@ void loop()
   if (analogRead(A2) < 20) {
     Z = 1; //Z Pressed
   }
+  //Serial.println("C and Z before Loop");
+  //Serial.print(C);
+  //Serial.println(Z);
+
+  //determining if the shutdown condition is met
+  powerOff = false;
+  bool exited = false;
+  bool exitedZ = false;
+  int c = 0;
+  int c1 = 0;
+  while (analogRead(A1) < 30) {
+    c++;
+    if (analogRead(A2) < 30) c1++;
+    if (c > 800) {
+      powerOff = true;
+      shutdownMet = true;
+      rwStart = 0;
+      jumpStart = 0;
+      C = 0;
+      Z = 0;
+      exited = false;
+      break;
+    }
+    exited = true;
+    //shutdownMet = false;
+  }
+
+  while (analogRead(A2) < 30 && analogRead(A1) > 30) {
+    c1++;
+    if (c1 > 800) {
+      powerOff = true;
+      shutdownZ = true;
+      jumpStart = 0;
+      Z = 0;
+      exitedZ = false;
+      break;
+    }
+    exitedZ = true;
+    //shutdownZ = false;
+
+  }
+
+
+
+  if (exited && shutdownMet) {
+    shutdownMet = false;
+    rwStart = 0;
+    jumpStart = 0;
+    C = 0;
+    Z = 0;
+    //Serial.println("entered c break");
+    //Serial.print(c);
+
+  }
+  else if (exitedZ && shutdownZ) {
+    shutdownZ = false;
+    jumpStart = 0;
+    //Serial.println("entered z break");
+    Z = 0;
+  }
+
+
+  //Serial.println("C and Z after Loop");
+  //Serial.print(C);
+  //Serial.println(Z);
 
   //setting the Start variables
-  if (!powerOff) {
-    //setting rwStart based on C and jumpStart to 0 if rwStart is set to 0
-    if (C != 0) {
-      if (rwStart == 0) rwStart = 1;
-      else {
-        rwStart = 0;
-        jumpStart = 0;
-      }
-    }
-    //setting jumpStart if the rwStart condition is met
-    if ( rwStart == 1 && Z != 0) {
-      if (jumpStart == 0) jumpStart = 1;
-      else jumpStart = 0;
+  // if (!powerOff) {
+  //setting rwStart based on C and jumpStart to 0 if rwStart is set to 0
+  if (C != 0) {
+    if (rwStart == 0) rwStart = 1;
+    else {
+      rwStart = 0;
+      jumpStart = 0;
     }
   }
+  //setting jumpStart if the rwStart condition is met
+  if ( rwStart == 1 && Z != 0) {
+    if (jumpStart == 0) jumpStart = 1;
+    else jumpStart = 0;
+  }
+  //}
 
   //Setting Joystick data
   onesDigit = 0;
@@ -185,11 +241,8 @@ void loop()
   //radiopacket[19] = 0;
 
   //Serial.println("Sending...");
-  delay(10);
   rf95.send((uint8_t *)data, sizeof(data));
-
   //Serial.println("Waiting for packet to complete...");
-  delay(10);
   rf95.waitPacketSent();
   // Now wait for a reply
   //  uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
