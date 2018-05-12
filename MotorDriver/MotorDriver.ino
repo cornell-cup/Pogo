@@ -135,8 +135,24 @@ void resetAll(){
 
 }
 
+void shutoff(){
+  emergency_shutoff = true;
+  VescUartSetCurrentBrake(BreakCurrent);
+  current = 0;
+  motor_on = false;
+  Serial.print('\2');         //Start Packet
+  Serial.print('\x01');       //One Bytes
+  Serial.print('\x00');       //Packet Id:0
+}
+
+//Packets:
+//0 -> Emergency Shutoff
+//1 -> Motor on/off
+//2 -> Current Control
 void processPacket(){
-  if (serialBuffer[0] == '\1' && packetSize == 2){
+  if (serialBuffer[0] == '\0' && packetSize == 1){
+    shutoff();
+  } else if (serialBuffer[0] == '\1' && packetSize == 2){
     bool com = serialBuffer[1] == '\1';
     if ( com != motor_on ) {
       motor_on = com;
@@ -146,8 +162,7 @@ void processPacket(){
         m_on_ack = false;
       }
     }
-  }
-  else if (serialBuffer[0] == '\2' && packetSize == 5){
+  } else if (serialBuffer[0] == '\2' && packetSize == 5){
     current = serialReadFloat(1);    
   }
   last_received = time;
@@ -233,19 +248,19 @@ void loop() {
 
   //If we have not received an update from the rpi in 100ms, we shut the motor off.
   if( motor_on && time - last_received > ShutoffTime ) {
-    emergency_shutoff = true;
-    Serial.print('\2');         //Start Packet
-    Serial.print('\x01');       //One Bytes
-    Serial.print('\x00');       //Packet Id:0
-    VescUartSetCurrentBrake(BreakCurrent);
+    shutoff();
   }
 
   //Actually control the motor current
   if( !motor_on ) {
     current = 0.0;
   }
-  VescUartSetCurrent(current);  
-
+  if( !emergency_shutoff ) {
+    VescUartSetCurrent(current);    
+  } else {
+    VescUartSetCurrentBrake(BreakCurrent);
+  }
+  
   //Write output back to master
   if(OutputSerial){
     
@@ -253,6 +268,11 @@ void loop() {
     //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
     //Third byte is the packet id.
     //Rest of the bytes is payload.
+
+    //Packets Out
+    //0 -> Emergency Shutoff
+    //1 -> Heartbeat
+    //2 -> Command Ack
 
     //We output a heartbeat so that the rpi knows our status.
     //If no signal is detected within 200 ms, we know that the arduino is unresponsive.
