@@ -1,49 +1,12 @@
-// Feather9x_RX
-// -*- mode: C++ -*-
-// Example sketch showing how to create a simple messaging client (receiver)
-// with the RH_RF95 class. RH_RF95 class does not provide for addressing or
-// reliability, so you should only use RH_RF95 if you do not need the higher
-// level messaging abilities.
-// It is designed to work with the other example Feather9x_TX
-
 #include <SPI.h>
 #include <RH_RF95.h>
 
-#define Debug false
-
-/* for Feather32u4 RFM9x
-#define RFM95_CS 8
-#define RFM95_RST 4
-#define RFM95_INT 7
-*/
+#define Debug true
 
 // for feather m0 RFM9x
 #define RFM95_CS 8
 #define RFM95_RST 4
 #define RFM95_INT 3
-
-// for TinyCircuit?
-//#define RFM95_CS 7
-//#define RFM95_RST 4
-//#define RFM95_INT 3
-
-/* for shield 
-#define RFM95_CS 10
-#define RFM95_RST 9
-#define RFM95_INT 7
-*/
-
-/* Feather 32u4 w/wing
-#define RFM95_RST     11   // "A"
-#define RFM95_CS      10   // "B"
-#define RFM95_INT     2    // "SDA" (only SDA/SCL/RX/TX have IRQ!)
-*/
-
-/* Feather m0 w/wing 
-#define RFM95_RST     11   // "A"
-#define RFM95_CS      10   // "B"
-#define RFM95_INT     6    // "D"
-*/
 
 #if defined(ESP8266)
   /* for ESP w/featherwing */ 
@@ -89,8 +52,6 @@ void DebugPrint(String s){
 void setup()
 {
   pinMode(LED, OUTPUT);
-  //pinMode(RFM95_RST, OUTPUT);
-  //digitalWrite(RFM95_RST, HIGH);
 
   Serial.begin(115200);
   while (!Serial) {
@@ -100,15 +61,9 @@ void setup()
 
   DebugPrint("Feather LoRa RX Test!");
 
-  // manual reset
-  /*digitalWrite(RFM95_RST, LOW);
-  delay(10);
-  digitalWrite(RFM95_RST, HIGH);
-  delay(10);*/
-
   if (!rf95.init()) {
     DebugPrint("LoRa radio init failed");
-    //while (1);
+    while (1);
   }
   DebugPrint("LoRa radio init OK!");
 
@@ -129,6 +84,7 @@ void setup()
 
 void loop()
 {
+  
   delay(5);
   if (rf95.available())
   {
@@ -137,25 +93,13 @@ void loop()
     uint8_t len = sizeof(buf);
 
     if (rf95.recv(buf, &len))
-    {
-      digitalWrite(LED, HIGH);
-      //RH_RF95::printBuffer("Received: ", buf, len);
-      //Serial.print("Got: ");
-      
+    {    
       Serial.println(buf[0]);
       Serial.println(buf[1]);
       Serial.println(buf[2]);
       Serial.println(buf[3]);
       Serial.println(buf[4]);
-      //Serial.print("RSSI: ");
-      //Serial.println(rf95.lastRssi(), DEC);
 
-//      // Send a reply
-//      uint8_t data[] = "And hello back to you";
-//      rf95.send(data, sizeof(data));
-//      rf95.waitPacketSent();
-//      Serial.println("Sent a reply");
-//      digitalWrite(LED, LOW);
     }
     else
     {
