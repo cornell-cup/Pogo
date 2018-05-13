@@ -30,7 +30,7 @@ If you want to use debug, uncomment DEBUGSERIAL and define a port.*/
 
 #ifndef _CONFIG_h
 
-#define SERIALIO Serial1  
+#define SERIALIO Serial2  
 #define DEBUGSERIAL Serial
 
 #endif
