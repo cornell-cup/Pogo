@@ -5,9 +5,9 @@ const int SCOPE = A8;
 const int POT = A9;
 const int LED = 13;
 
-#define INTERVAL 3000 // 150000 = 0.15 seconds
-#define PERIOD   0.03 // s
-#define MIDDLE 430
+#define INTERVAL    3000 // 150000 = 0.15 seconds
+#define PERIOD      0.03 // s
+#define MIDDLE      430
 #define MAX_CURRENT 80
 
 unsigned long time;
@@ -55,7 +55,7 @@ void readPot() {
 void loop() {
   noInterrupts();
   derivativeCopy = derivative;
-  currentPotCopy = currentPot;
+ // currentPotCopy = currentPot;
   interrupts();
 /*
   derivativeCopy = map( derivativeCopy, -1000, 1000, 0, 255 );
@@ -81,22 +81,5 @@ void loop() {
   
   if ( current > 0 ) digitalWrite( LED, HIGH);
   else digitalWrite( LED, LOW );
-
-  /*
-  time = millis();
-//  Serial.println( time - prev_time );
-  if (on && time - prev_time  > 160){
-      VescUartSetCurrent(0.0);
-      on = false;
-      prev_time = time;
-      //Serial.println(0.0);
-  }
-  else if( !on && time - prev_time > 160) {
-    VescUartSetCurrent(MAX_CURRENT);
-    on = true;
-    prev_time = time;
-    //Serial.println(80.0);
-    
-  }*/
 }
 
