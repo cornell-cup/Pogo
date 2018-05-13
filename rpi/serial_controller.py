@@ -13,6 +13,7 @@ s_imu = s0
 global imu_euler
 global imu_gyro
 global imu_linaccel
+global motor_rpm
 imu_euler = (0.0,0.0,0.0)
 imu_gyro = (0.0,0.0,0.0)
 imu_linaccel = (0.0,0.0,0.0)
@@ -20,6 +21,7 @@ motor_rpm = 0
 
 class ProcessSerial:
 
+  #processPacket is a function
   def __init__(self, name, port, processPacket):
     self.name = name
     self.port = port
@@ -71,11 +73,28 @@ def processMotorPacket(packet):
     print ("Error: Packet Empty")
   elif len(packet) == 0:
     print ("Error: Packet Empty")
-  elif packet[0] == 'Q':
+  elif packet[0] == '0':
     print ("Motor shutdown packet")
-  elif packet[0] == 'R' and len(packet) == 2:
+
+  #heartbeat
+  elif packet[0] == '1' and len(packet)==2:
+    if packet[1] == '0':
+      print('Emergency Shutoff')
+    if packet[1] == '1':
+      print('Motor On')
+    if packet[1] == '2':
+      print('Motor Off')
+
+  elif packet[0] == '2' and len(packet)==2:
+    if packet[1] == '0':
+      print('Motor turned off')
+    if packet[1] == '1':
+      print('Motor turned on')
+
+  elif packet[0] == '3' and len(packet) == 5:
     global motor_rpm
-    motor_rpm = packet[1]
+    #figure out if line 97 works, might have to conver to byte list
+    motor_rpm = int.from_bytes(packet[1:5], byteorder='little', signed=False)
   else:
     print (packet)
 
@@ -138,5 +157,4 @@ while 1:
 
   
 
-for sr in SerialReaders:
-  sr.closePort()
+
