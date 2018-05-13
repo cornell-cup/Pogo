@@ -125,3 +125,4 @@ void buffer_append_bool(uint8_t *buffer,bool value, int32_t *index) {
 	}
 
 }
+

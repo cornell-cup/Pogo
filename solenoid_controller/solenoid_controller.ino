@@ -1,14 +1,16 @@
 #include "VescUart.h"
 #include "datatypes.h"
 
+// Pin assignments
 const int SCOPE = A8;
+const int SCOPE2 = A7;
 const int POT = A9;
 const int LED = 13;
 
 #define INTERVAL    3000 // 150000 = 0.15 seconds
 #define PERIOD      0.03 // s
 #define MIDDLE      430
-#define MAX_CURRENT 80
+#define MAX_CURRENT 80.0f
 
 unsigned long time;
 unsigned long prev_time;
@@ -21,6 +23,7 @@ int currentPotCopy;
 volatile int pastPot;
 volatile int derivative;
 int derivativeCopy;
+int pastDerivativeCopy;
 int scope_current;
 
 void setup() {
@@ -40,7 +43,7 @@ void setup() {
 
 struct bldcMeasure measuredValues;
 
-#define MAX_CURRENT 80.0f
+//#define MAX_CURRENT 80.0f
 float current = 0.0;
 volatile bool on = true;
 bool read_rpm = false;
@@ -62,24 +65,31 @@ void loop() {
   derivativeCopy = constrain( derivativeCopy, 0, 255 );
   //Serial.println( derivativeCopy);
   analogWrite( SCOPE, derivativeCopy );
+
+  if ( pastDerivativeCopy != derivativeCopy ) {
+    Serial.println( derivativeCopy );
+  }
 */
-  if ( currentPot < MIDDLE && derivativeCopy > 0 ){
-    current = map( derivativeCopy, 0, 100, 0, MAX_CURRENT );
+  if ( currentPot < MIDDLE && derivativeCopy > 100 ){
+    current = map( derivativeCopy, 100, 200, 0, MAX_CURRENT );
     current = constrain( current, 0, MAX_CURRENT);
   }
   else if ( currentPot > MIDDLE && derivativeCopy < 0 ) {
-    current = map( derivativeCopy, 0, -100, 0, MAX_CURRENT );
+    current = map( derivativeCopy, 0, -200, 0, MAX_CURRENT );
     current = constrain( current, 0, MAX_CURRENT);
   }
   else current = 0.0;
-  scope_current = map( current, 0, MAX_CURRENT, 0, 255 );
-  scope_current = constrain( scope_current, 0, 255 );
+  scope_current = map( current, 0, MAX_CURRENT, 50, 200 );
+  scope_current = constrain( scope_current, 50, 200 );
   //Serial.println( derivativeCopy);
   //Serial.println( currentPot );
   analogWrite( SCOPE, scope_current );
-  VescUartSetCurrent( current );
+  analogWrite( SCOPE2, scope_current );
+  //VescUartSetCurrent( current );
   
   if ( current > 0 ) digitalWrite( LED, HIGH);
   else digitalWrite( LED, LOW );
+  pastDerivativeCopy = derivativeCopy;
 }
+
 

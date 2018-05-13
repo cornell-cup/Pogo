@@ -62,3 +62,4 @@ unsigned short crc16(unsigned char *buf, unsigned int len) {
 	}
 	return cksum;
 }
+
