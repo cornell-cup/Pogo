@@ -9,6 +9,8 @@
 #include <SPI.h>
 #include <RH_RF95.h>
 
+#define Debug false
+
 /* for Feather32u4 RFM9x
 #define RFM95_CS 8
 #define RFM95_RST 4
@@ -78,6 +80,12 @@ RH_RF95 rf95(RFM95_CS, RFM95_INT);
 // Blinky on receipt
 #define LED 13
 
+void DebugPrint(String s){
+  if( Debug ) {
+    Serial.println(s);
+  }
+}
+
 void setup()
 {
   pinMode(LED, OUTPUT);
@@ -90,7 +98,7 @@ void setup()
   }
   delay(100);
 
-  Serial.println("Feather LoRa RX Test!");
+  DebugPrint("Feather LoRa RX Test!");
 
   // manual reset
   /*digitalWrite(RFM95_RST, LOW);
@@ -99,17 +107,17 @@ void setup()
   delay(10);*/
 
   if (!rf95.init()) {
-    Serial.println("LoRa radio init failed");
+    DebugPrint("LoRa radio init failed");
     //while (1);
   }
-  Serial.println("LoRa radio init OK!");
+  DebugPrint("LoRa radio init OK!");
 
   // Defaults after init are 434.0MHz, modulation GFSK_Rb250Fd250, +13dbM
   if (!rf95.setFrequency(RF95_FREQ)) {
-    Serial.println("setFrequency failed");
+    DebugPrint("setFrequency failed");
     while (1);
   }
-  Serial.print("Set Freq to: "); Serial.println(RF95_FREQ);
+  DebugPrint("Set Freq to: "); DebugPrint(String(RF95_FREQ));
 
   // Defaults after init are 434.0MHz, 13dBm, Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on
 
@@ -121,9 +129,7 @@ void setup()
 
 void loop()
 {
-
-  Serial.println("init");
-  delay(500);
+  delay(5);
   if (rf95.available())
   {
     // Should be a message for us now
@@ -133,10 +139,15 @@ void loop()
     if (rf95.recv(buf, &len))
     {
       digitalWrite(LED, HIGH);
-      RH_RF95::printBuffer("Received: ", buf, len);
+      //RH_RF95::printBuffer("Received: ", buf, len);
       //Serial.print("Got: ");
-      Serial.println((char*)buf);
-       //Serial.print("RSSI: ");
+      
+      Serial.println(buf[0]);
+      Serial.println(buf[1]);
+      Serial.println(buf[2]);
+      Serial.println(buf[3]);
+      Serial.println(buf[4]);
+      //Serial.print("RSSI: ");
       //Serial.println(rf95.lastRssi(), DEC);
 
 //      // Send a reply
@@ -148,7 +159,7 @@ void loop()
     }
     else
     {
-      Serial.println("Receive failed");
+      DebugPrint("Receive failed");
     }
   }
 }
