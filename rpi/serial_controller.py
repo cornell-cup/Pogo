@@ -9,6 +9,7 @@ s0 = serial.Serial('/dev/ttyACM0', 115200)
 #Use dmesg command in the terminal to determine which one is which.
 s_motor = s0
 s_imu = s0
+s_nunchuck = s0
 
 #Imu Values
 imu_euler = (0.0,0.0,0.0)
@@ -19,6 +20,10 @@ motor_rpm = 0
 status = 0     #Status should reflect the heartbeat
                #0 -> Motor Off, 1 -> Motor On, 2 -> Shutoff
 set_status = 0 #Status rpi wants the motor to have.motor_rpm = 0
+#Nunchuck Values
+nun_wheel = 0
+nun_jump = 0
+nun_x = -1
 
 class ProcessSerial:
 
@@ -126,17 +131,32 @@ def processImuPacket(packet):
   else:
     print (packet)
 
+def processNunchuckPacket(packet):
+  if not packet:
+    print ("Nunchuck Error: Packet Empty")
+  elif len(packet) != 6:
+    print ("Nunchuck Error: Incorrect Packet Size") 
+  else:
+    global nun_wheel
+    global nun_jump
+    global nun_x
+    nun_wheel = int.from_bytes(packet[0], byteorder='little', signed=False)
+    nun_jump = int.from_bytes(packet[1], byteorder='little', signed=False)
+    nun_x = int.from_bytes(packet[2:6], byteorder='little', signed=False)
+    
+
 
 
     
 processMotorSerial = ProcessSerial("motor", s_motor, processMotorPacket)
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
+processNunchuckSerial = ProcessSerial("nunchuck", s_nunchuck, processNunchuckPacket)
 
 SerialReaders = []
-#SerialReaders += processMotorSerial
-SerialReaders.append(processImuSerial)
-#SerialReaders += processRadioSerial
-#SerialReaders += processSolenoidSerial
+#SerialReaders.append(processMotorSerial)
+#SerialReaders.append(processImuSerial)
+SerialReaders.append(processNunchuckSerial)
+#SerialReaders.append(processSolenoidSerial)
 
 print ( "Starting" )
 
@@ -146,7 +166,7 @@ while 1:
     sr.readSerial()
   #use info to calculate what to return
 
-  print (imu_euler)
+  print (nun_x)
 
 
   #write serial to devices
