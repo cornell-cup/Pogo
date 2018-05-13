@@ -10,14 +10,15 @@ s0 = serial.Serial('/dev/ttyACM0', 115200)
 s_motor = s0
 s_imu = s0
 
-global imu_euler
-global imu_gyro
-global imu_linaccel
-global motor_rpm
+#Imu Values
 imu_euler = (0.0,0.0,0.0)
 imu_gyro = (0.0,0.0,0.0)
 imu_linaccel = (0.0,0.0,0.0)
+#Motor Values
 motor_rpm = 0
+status = 0     #Status should reflect the heartbeat
+               #0 -> Motor Off, 1 -> Motor On, 2 -> Shutoff
+set_status = 0 #Status rpi wants the motor to have.motor_rpm = 0
 
 class ProcessSerial:
 
@@ -145,16 +146,9 @@ while 1:
     sr.readSerial()
   #use info to calculate what to return
 
-  global imu_euler
-  global imu_gyro
-  global imu_linaccel  
   print (imu_euler)
-  #print (imu_position)
-  #print imu_rotation
+
+
   #write serial to devices
   
-
-
-  
-
 
