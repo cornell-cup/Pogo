@@ -1,7 +1,7 @@
 #include "VescUart.h"
 #include "datatypes.h"
 
-#define OutputSerial false
+#define OutputSerial true
 #define MaxPacketSize 40
 #define HasHeartbeat true
 #define HeartbeatTime 100
@@ -242,6 +242,8 @@ void loop() {
         read_rpm = false;
       }
       else {
+        Serial.print('\2');
+        Serial.print('\x01');
         Serial.print('E');
         read_rpm = false;
       }
