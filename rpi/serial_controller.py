@@ -10,21 +10,21 @@ StatusTime = 500
 
 
 s0 = serial.Serial('/dev/ttyACM0', 115200)
-#s1 = serial.Serial('/dev/ttyACM1', 115200)
+s1 = serial.Serial('/dev/ttyACM1', 115200)
 #s2 = serial.Serial('/dev/ttyACM2', 115200)
 #s3 = serial.Serial('/dev/ttyACM3', 115200)
 
 #Reassign as necessary, plug them in the order you want.
 #Use dmesg command in the terminal to determine which one is which.
-s_motor = s0
+s_motor = s1
 s_imu = s0
 s_nunchuck = s0
 s_solenoid = s0
 
 imu_connected = False
-motor_connected = False
+motor_connected = True
 sol_connected = False
-nunchuck_connected = False
+nunchuck_connected = True
 
 
 #Imu Values
@@ -101,7 +101,7 @@ class ProcessSerial:
           self.reset()
           self.hasStart = True
         else:
-          print ("Has noise")
+          print ("Has noise ::{}".format( inByte ))
       #the packet is too long, longer than any of our set packets
       elif len(self.buffer) > 100:
         self.reset()
@@ -139,17 +139,19 @@ def processMotorPacket(packet):
   elif packet[0] == '0':
     print ("Emergency motor shutdown!!!")
     motor_status = 2
+  elif packet[0] == 69:
+    print ("Motor Error")
   #heartbeat #Todo need to check when the motor_status does not equal what rpi says it should be.
-  elif packet[0] == '1' and len(packet)==2:
-    if packet[1] == '0':
+  elif packet[0] == 1 and len(packet)==2:
+    if packet[1] == 0:
       motor_status = 2
-    if packet[1] == '1':
+    if packet[1] == 1:
       motor_status = 1
-    if packet[1] == '2':
+    if packet[1] == 2:
       motor_status = 0
   #motor acks
-  elif packet[0] == '2' and len(packet)==2:
-    if packet[1] == '0':
+  elif packet[0] == 2 and len(packet)==2:
+    if packet[1] == 0:
       print('Motor turned off')
       global motor_waiting_off_ack
       if motor_waiting_off_ack:
@@ -157,7 +159,7 @@ def processMotorPacket(packet):
         motor_status = 0
       else:
         print("Received ack wrongly motor_off")
-    if packet[1] == '1':
+    if packet[1] == 1:
       print('Motor turned on')
       global motor_waiting_on_ack
       if motor_waiting_on_ack:
@@ -166,7 +168,7 @@ def processMotorPacket(packet):
       else:
         print("Received ack wrongly motor_on")
 
-  elif packet[0] == '3' and len(packet) == 5:
+  elif packet[0] == 3 and len(packet) == 5:
     global motor_rpm
     #figure out if line 97 works, might have to conver to byte list
     motor_rpm = int.from_bytes(packet[1:5], byteorder='little', signed=False)
@@ -178,7 +180,7 @@ def processImuPacket(packet):
     print ("Error: Packet Empty")
   elif len(packet) == 0:
     print ("Error: Packet Empty")
-  elif packet[0] == '\x45':
+  elif packet[0] == 69:
     print ("Imu Error")
   elif packet[0] == 1 and len(packet) == 73:
     global imu_euler
@@ -222,6 +224,7 @@ def processNunchuckPacket(packet):
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
 processMotorSerial = ProcessSerial("motor", s_motor, processMotorPacket)
+processSolenoidSerial = ProcessSerial("solenoid", s_solenoid, processMotorPacket)#todo process sol packet
 processNunchuckSerial = ProcessSerial("nunchuck", s_nunchuck, processNunchuckPacket)
 
 SerialReaders = []
@@ -252,6 +255,7 @@ while 1:
     
 
   #calculate PID loop
+  current = 5.0
   
 
   #write serial to devices
