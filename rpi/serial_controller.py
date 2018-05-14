@@ -10,7 +10,7 @@ StatusTime = 500
 
 
 s0 = serial.Serial('/dev/ttyACM0', 115200)
-s1 = serial.Serial('/dev/ttyACM1', 115200)
+s1 = serial.Serial('/dev/ttyACM1', 1000000)
 #s2 = serial.Serial('/dev/ttyACM2', 115200)
 #s3 = serial.Serial('/dev/ttyACM3', 115200)
 
@@ -61,7 +61,7 @@ theta_prev = 0
 theta_deriv = 0
 theta_average = 0
 
-current = 0
+current = 5.0
 
 #PID Constants
 zero_offset = 0
@@ -75,7 +75,8 @@ start_time = cur_time
 prev_time = cur_time
 status_time = cur_time
 motor_ack_timer = cur_time
-
+lag_time = cur_time
+motor_write_time = cur_time
 
 
 class ProcessSerial:
@@ -128,6 +129,9 @@ def printStatus():
   print( "-------------{}--------------".format( cur_time - start_time ) )
   print( "Motor Status: {} :: Set-> {} :: Current -> {}".format( motor_status, motor_set_status, current ) )
   print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
+  print( "Loop Time:: {}".format( cur_time - prev_time ))
+  print( "RPM:: {}".format( motor_rpm ))
+  
 
 
 def processMotorPacket(packet):
@@ -155,7 +159,7 @@ def processMotorPacket(packet):
       print('Motor turned off')
       global motor_waiting_off_ack
       if motor_waiting_off_ack:
-        motor_off_ack = False
+        motor_waiting_off_ack = False
         motor_status = 0
       else:
         print("Received ack wrongly motor_off")
@@ -163,8 +167,9 @@ def processMotorPacket(packet):
       print('Motor turned on')
       global motor_waiting_on_ack
       if motor_waiting_on_ack:
-        motor_on_ack = False
+        motor_waiting_on_ack = False
         motor_status = 1
+        print( "Lag time :: {}".format( cur_time - lag_time ) )
       else:
         print("Received ack wrongly motor_on")
 
@@ -238,10 +243,10 @@ if nunchuck_connected:
   SerialReaders.append(processNunchuckSerial)
   
 print ( "Starting" )
-
+a = bytearray(struct.pack('f', current))
 while 1:
   #Timers
-  prev_time = time
+  prev_time = cur_time
   cur_time = millis()
   
   #read from devices to update info
@@ -255,21 +260,24 @@ while 1:
     
 
   #calculate PID loop
-  current = 5.0
   
 
   #write serial to devices
   if motor_connected:
     if ( motor_status == 0 and motor_set_status == 1 and not motor_waiting_on_ack):
       #Send Motor On Packet
+      print( "sent motor on packet")
       s_motor.write(b'\x02')
       s_motor.write(b'\x02')
       s_motor.write(b'\x01')
       s_motor.write(b'\x01')
       motor_waiting_on_ack = True
+      current = -current
+      lag_time = cur_time
       
     if ( motor_status == 1 and motor_set_status == 0 and not motor_waiting_off_ack):
       #Send Motor On Packet
+      print( "sent motor off packet" )
       s_motor.write(b'\x02')
       s_motor.write(b'\x02')
       s_motor.write(b'\x01')
@@ -277,11 +285,14 @@ while 1:
       motor_waiting_off_ack = True
 
     # Write motor current every loop if motor should be on.
-    if ( motor_set_status == 1 ):
-      s_motor.write(b'\x02')
-      s_motor.write(b'\x05')
-      s_motor.write(b'\x02')
-      s_motor.write(bytearray(struct.pack('f', current)))
+    #motor_set_status == 1 and
+    if (  cur_time - motor_write_time > 50 ):
+        s_motor.write(b'\x02')
+        s_motor.write(b'\x05')
+        s_motor.write(b'\x02')
+        s_motor.write(a)
+        s.flush()
+      
     
 
   time.sleep(.005)
