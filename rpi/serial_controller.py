@@ -140,8 +140,8 @@ def processNunchuckPacket(packet):
     global nun_wheel
     global nun_jump
     global nun_x
-    nun_wheel = int.from_bytes(packet[0], byteorder='little', signed=False)
-    nun_jump = int.from_bytes(packet[1], byteorder='little', signed=False)
+    nun_wheel = int.from_bytes(packet[0:1], byteorder='little', signed=False)
+    nun_jump = int.from_bytes(packet[1:2], byteorder='little', signed=False)
     nun_x = int.from_bytes(packet[2:6], byteorder='little', signed=False)
     
 
@@ -165,10 +165,10 @@ while 1:
   for sr in SerialReaders:
     sr.readSerial()
   #use info to calculate what to return
+  if nun_x != -1:
+    print (nun_x)
 
-  print (nun_x)
-
-
+  time.sleep(.005)
   #write serial to devices
   
 
