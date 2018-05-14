@@ -5,7 +5,7 @@
 #define MaxPacketSize 40
 #define HasHeartbeat true
 #define HeartbeatTime 100
-#define HasShutoffTimeout true
+#define HasShutoffTimeout false
 #define ShutoffTime 100
 #define ReadMotorControllerTime 160
 #define BreakCurrent 4.0
@@ -187,7 +187,7 @@ void loop() {
   //Read Serial for any updates from Master
   while ( Serial.available() > 0) {
     inByte = Serial.read();
-    Serial.print(inByte);
+//    Serial.print(inByte);
     if (!hasStart){
       if ( inByte == '\2' ){
         resetSerial();
@@ -255,15 +255,18 @@ void loop() {
     shutoff();
   }
 
+  
   //Actually control the motor current
   if( !motor_on ) {
     current = 0.0;
+    VescUartSetCurrentBrake(BreakCurrent);
+
   }
   if( !emergency_shutoff ) {
     VescUartSetCurrent(current);    
   } else {
     VescUartSetCurrentBrake(BreakCurrent);
-  }
+  }  
 
   
   //Write output back to master
