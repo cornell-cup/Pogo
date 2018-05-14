@@ -1,6 +1,34 @@
-#define NOT_DEBUG       // define as "DEBUG" to go into debugging mode with Serial Monitor
+#include "VescUart.h"
+#include "datatypes.h"
+
+// Pin assignments
+const int SCOPE = A8;
+const int SCOPE2 = A7;
+const int POT = A9;
+const int LED = 13;
+
+#define INTERVAL    3000 // 150000 = 0.15 seconds
+#define PERIOD      0.03 // s
+#define MIDDLE      430
+#define MAX_CURRENT 80.0f
+
 #define OutputSerial false
 #define MaxPacketSize 40
+
+unsigned long time;
+unsigned long prev_time;
+unsigned long tx_time;
+unsigned long count;
+
+IntervalTimer myTimer;
+volatile int currentPot;
+int currentPotCopy;
+volatile int pastPot;
+volatile int derivative;
+int derivativeCopy;
+int pastDerivativeCopy;
+int scope_current;
+
 
 char inByte = 0;   // for incoming serial data
 
@@ -94,6 +122,7 @@ void resetSerial(){
 //Packets:
 //0 -> Emergency Shutoff
 //1 -> Jump
+//2 -> Off
 void processPacket(){
   if (serialBuffer[0] == '\0' && packetSize == 1)
   {
@@ -101,23 +130,18 @@ void processPacket(){
   }
   else if (serialBuffer[0] == '\1' && packetSize == 1)
   {
-  // jumps at max
-  solenoidControl( 294, 100 );
+    // jumps at max
+    analogWrite( SCOPE2, 200);
+
+  }
+  else if (serialBuffer[0] == '\2' && packetSize == 1)
+  {
+    // no jump
+    analogWrite( SCOPE2, 50);
   }
 
   //always
-  potRead();
-}
-
-void setup() {
-  #ifdef DEBUG
-  Serial.begin( 9600 ); // Start Serial
-  #endif // DEBUG
-
-  // Set pin I/O
-  pinMode( CONTROL, OUTPUT );
-  pinMode( POT, INPUT );
-  pinMode( LED_BUILTIN, OUTPUT );
+  //potRead();
 }
 
 //from templateDriver
@@ -127,8 +151,71 @@ void setup() {
 //   delay( 1000 );
 // }
 
-void loop() {
 
+void setup() {
+  Serial.begin(9600);
+  // VESC UART
+  Serial2.begin(9600);
+  pinMode( POT, INPUT );
+  pinMode( SCOPE, OUTPUT );
+  pinMode( LED, OUTPUT);
+
+  myTimer.begin(readPot, INTERVAL);  // blinkLED to run every 0.03 seconds
+  analogWriteResolution( 8 );
+  digitalWrite(LED, HIGH);
+  delay(1000);
+  digitalWrite(LED, LOW);
+}
+
+struct bldcMeasure measuredValues;
+
+//#define MAX_CURRENT 80.0f
+float current = 0.0;
+volatile bool on = true;
+bool read_rpm = false;
+
+void readPot() {
+  currentPot = analogRead( POT );
+  derivative = ( currentPot - pastPot ) / PERIOD;
+  pastPot = currentPot;
+}
+
+// the loop function runs over and over again until power down or reset
+void loop() {
+  noInterrupts();
+  derivativeCopy = derivative;
+ // currentPotCopy = currentPot;
+  interrupts();
+/*
+  derivativeCopy = map( derivativeCopy, -1000, 1000, 0, 255 );
+  derivativeCopy = constrain( derivativeCopy, 0, 255 );
+  //Serial.println( derivativeCopy);
+  analogWrite( SCOPE, derivativeCopy );
+
+  if ( pastDerivativeCopy != derivativeCopy ) {
+    Serial.println( derivativeCopy );
+  }
+*/
+  if ( currentPot < MIDDLE && derivativeCopy > 100 ){
+    current = map( derivativeCopy, 100, 200, 0, MAX_CURRENT );
+    current = constrain( current, 0, MAX_CURRENT);
+  }
+  else if ( currentPot > MIDDLE && derivativeCopy < 0 ) {
+    current = map( derivativeCopy, 0, -200, 0, MAX_CURRENT );
+    current = constrain( current, 0, MAX_CURRENT);
+  }
+  else current = 0.0;
+  scope_current = map( current, 0, MAX_CURRENT, 50, 200 );
+  scope_current = constrain( scope_current, 50, 200 );
+  //Serial.println( derivativeCopy);
+  //Serial.println( currentPot );
+  analogWrite( SCOPE, scope_current );
+  analogWrite( SCOPE2, scope_current );
+  //VescUartSetCurrent( current );
+  
+  if ( current > 0 ) digitalWrite( LED, HIGH);
+  else digitalWrite( LED, LOW );
+  pastDerivativeCopy = derivativeCopy;
 
   //Read Serial for any updates from Master
   while ( Serial.available() > 0) {
@@ -163,88 +250,18 @@ void loop() {
   }
 
 
-
-  //Write output back to master
-  if(OutputSerial){
-    //First byte is always '\2'
-    Serial.print('\2');
-    //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
-    Serial.print('\x09');
-    Serial.print('\x01');
-  }
+  //Write output back to master TODO: none right now
+//   if(OutputSerial){
+//     //First byte is always '\2'
+//     Serial.print('\2');
+//     //Second byte is the size of the rest of the packet. Double * 8 + Float * 4 + Int * 4 + Char * 1 
+//     Serial.print('\x09');
+//     Serial.print('\x01');
+//   }
   
   delay(10);
 }
 
 
 
-
-
-/**
- * Controls solenoid's jumping time and how much voltage control from Arduino
- * Input:
- * onecycle - period in ms
- * v_level  - how much voltage for Arduino to put in gate from 0 to 100 (should be 100 usually)
- */
-void solenoidControl( int onecycle, int v_level ) {
-  int scaled_volts = 255 * ( v_level / 100 );
-  int half_cycle = onecycle / 2;
-
-  #ifdef DEBUG
-  Serial.print( "analogWrite input = [ " ); Serial.print( scaled_volts ); Serial.println(" ]" );
-  Serial.print( "half_cycle ( delay input ) = [ " ); Serial.print( half_cycle ); Serial.println( " ]" );
-  Serial.println( "HIGH" );
-  #endif // DEBUG
-
-  // Actuate solenoid
-  digitalWrite( LED_BUILTIN, HIGH );
-  analogWrite( CONTROL, scaled_volts );
-  delay( half_cycle );
-
-  #ifdef DEBUG
-  Serial.println( "LOW" );
-  #endif
-
-  // De-actuate solenoid (solenoid lets go of what it's holding onto)
-  digitalWrite( LED_BUILTIN, LOW );
-  analogWrite( CONTROL, 0 );
-  delay( half_cycle );
-}
-
-/**
- * Sweep values for solenoid to bounce, helpful for finding resonance point
- * Input:
- * start_val - beginning period guess in ms
- * end_val   - end period guess in ms
- * increment - how much to increment period guess in ms
- * jumps     - jumps per cycle
- * v_level   - how much voltage for Arduino to put in gate of NFET from 0 to 100 
- *           - should be 100 usually
- */
-void solenoidSweep( int start_val, int end_val, int increment, int jumps, int v_level ){
-  #ifdef DEBUG
-  Serial.println( "SOLENOID SWEEP START" );
-  #endif // DEBUG
-  
-  for ( int i = start_val / 2; i < end_val / 2; i = i + increment ) {
-    for ( int j = 0; j < jumps; j++ ) {
-      #ifdef DEBUG
-      Serial.print( "Jump # = [ "); Serial.print( j ); Serial.println( " ]" );
-      #endif //DEBUG
-      solenoidControl( i, v_level );
-    }
-  }
-}
-
-/**
- * Returns readings from linear potentiometer
- */
-int potRead( void ){
-  int value = analogRead( POT );
-  
-  #ifdef DEBUG
-  Serial.print( "Potentiometer reading = [ " ); Serial.print( value ); Serial.println( " ]" );
-  #endif // DEBUG
-  
-  return value;
-}
+//50 = off, 200
