@@ -81,8 +81,9 @@ void loop() {
   else current = 0.0;
   scope_current = map( current, 0, MAX_CURRENT, 50, 200 );
   scope_current = constrain( scope_current, 50, 200 );
-  //Serial.println( derivativeCopy);
-  //Serial.println( currentPot );
+  //Serial.print( "Derivative " ); Serial.println( derivativeCopy);
+  //Serial.print( "Potentiometer " ); Serial.println( currentPot );
+  //Serial.print( "SCOPE " );Serial.println( scope_current);
   analogWrite( SCOPE, scope_current );
   analogWrite( SCOPE2, scope_current );
   //VescUartSetCurrent( current );
