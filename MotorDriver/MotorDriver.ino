@@ -173,9 +173,10 @@ void setup() {
   //Serial is to the rpi
   Serial.begin( 115200 );
   Serial.flush();
+  delay( 19000 );
   //Serial1 is to the motor controller
   Serial1.begin( 9600 );
-  delay( 100 );
+  delay( 1000 );
 }
 
 
@@ -322,6 +323,6 @@ void loop() {
     serialPrintInt(rpm);          //Motor RPM
   }
   
-//  delay(10);/
+  delay(10);
 }
 

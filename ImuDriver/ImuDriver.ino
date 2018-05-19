@@ -124,7 +124,7 @@ void loop() {
   //Read Serial for any updates from Master
   while ( Serial.available() > 0) {
     inByte = Serial.read();
-    Serial.print(inByte);
+    //Serial.print(inByte);
     if (!hasStart){
       if ( inByte == '\2' ){
         resetSerial();
@@ -174,6 +174,6 @@ void loop() {
        
   }
   
-  //delay(1);
+  delay(5);
 }
 
