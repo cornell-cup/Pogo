@@ -1,7 +1,7 @@
 #include <SPI.h>
 #include <RH_RF95.h>
 
-#define Debug true
+#define Debug false
 
 // for feather m0 RFM9x
 #define RFM95_CS 8
@@ -43,9 +43,23 @@ RH_RF95 rf95(RFM95_CS, RFM95_INT);
 // Blinky on receipt
 #define LED 13
 
+union IConv{
+   int x;
+   uint8_t c[sizeof (int)]; 
+};
+union IConv r_iconv;
+union IConv w_iconv;
+
 void DebugPrint(String s){
   if( Debug ) {
     Serial.println(s);
+  }
+}
+
+void serialPrintInt(int val){
+  w_iconv.x = val;
+  for (unsigned i = 0; i < sizeof (int); i++){
+    Serial.write(w_iconv.c[i]);
   }
 }
 
@@ -94,12 +108,11 @@ void loop()
 
     if (rf95.recv(buf, &len))
     {    
-      Serial.println(buf[0]);
-      Serial.println(buf[1]);
-      Serial.println(buf[2]);
-      Serial.println(buf[3]);
-      Serial.println(buf[4]);
-
+      Serial.print('\2');
+      Serial.print('\x03');
+      Serial.print(buf[0] == 0 ? '\0' : '\1');
+      Serial.print(buf[1] == 0 ? '\0' : '\1');
+      Serial.print(char(buf[2] * 100 + buf[3] * 10  + buf[4]));
     }
     else
     {
@@ -107,4 +120,5 @@ void loop()
     }
   }
 }
+
 
