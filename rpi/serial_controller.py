@@ -10,7 +10,7 @@ StatusTime = 500
 
 
 s0 = serial.Serial('/dev/ttyACM0', 115200)
-s1 = serial.Serial('/dev/ttyACM1', 1000000)
+s1 = serial.Serial('/dev/ttyACM1', 115200)
 #s2 = serial.Serial('/dev/ttyACM2', 115200)
 #s3 = serial.Serial('/dev/ttyACM3', 115200)
 
@@ -78,6 +78,12 @@ motor_ack_timer = cur_time
 lag_time = cur_time
 motor_write_time = cur_time
 
+max_fps = 0
+avg_fps = 0
+avg_fps_count = 0
+lag_count = [0] * 5
+lag_cutoff = 8
+
 
 class ProcessSerial:
 
@@ -93,8 +99,11 @@ class ProcessSerial:
     
   def readSerial(self):
     inByte = '0'
-    while self.port.inWaiting() > 0:
+    counter_zz = 0
+    while self.port.inWaiting() > 0 and counter_zz < 100:
+      counter_zz += 1
       inByte = self.port.read(1)
+      #print(self.port.inWaiting())
       #print(inByte)
       
       if not self.hasStart:
@@ -126,12 +135,19 @@ class ProcessSerial:
     self.port.close()
         
 def printStatus():
+  global max_fps
+  global avg_fps
+  global avg_fps_count
+  global lag_count 
   print( "-------------{}--------------".format( cur_time - start_time ) )
   print( "Motor Status: {} :: Set-> {} :: Current -> {}".format( motor_status, motor_set_status, current ) )
   print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
-  print( "Loop Time:: {}".format( cur_time - prev_time ))
-  print( "RPM:: {}".format( motor_rpm ))
-  
+  print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
+  print( "RPM: {} :: Nunchuck: {}".format( motor_rpm, nun_x ))
+  max_fps = 0
+  avg_fps = 0
+  avg_fps_count = 0
+  lag_count = [0] * 5
 
 
 def processMotorPacket(packet):
@@ -175,8 +191,7 @@ def processMotorPacket(packet):
 
   elif packet[0] == 3 and len(packet) == 5:
     global motor_rpm
-    #figure out if line 97 works, might have to conver to byte list
-    motor_rpm = int.from_bytes(packet[1:5], byteorder='little', signed=False)
+    motor_rpm = int.from_bytes(packet[1:5], byteorder='little', signed=True)
   else:
     print (packet)
 
@@ -210,21 +225,21 @@ def processImuPacket(packet):
 def processNunchuckPacket(packet):
   if not packet:
     print ("Nunchuck Error: Packet Empty")
-  elif len(packet) != 6:
-    print ("Nunchuck Error: Incorrect Packet Size") 
+  elif len(packet) != 3:
+    print ("Nunchuck Error: Incorrect Packet Size")
   else:
     global nun_wheel
     global motor_set_status
     global nun_jump
     global sol_set_status
     global nun_x
-    nun_wheel = packet[0] - 48 #Todo Should probably fix this arduino side.
+    nun_wheel = packet[0] #Todo Should probably fix this arduino side.
     if ( not rpi_nun_override and nun_wheel != motor_set_status ):
       motor_set_status = nun_wheel  
-    nun_jump = packet[1] - 48
+    nun_jump = packet[1]
     if ( not rpi_nun_override and nun_jump != sol_set_status ):
       sol_set_status = nun_jump  
-    nun_x = int.from_bytes(packet[2:6], byteorder='little', signed=False)
+    nun_x = int(packet[2])
     
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
@@ -243,12 +258,18 @@ if nunchuck_connected:
   SerialReaders.append(processNunchuckSerial)
   
 print ( "Starting" )
-a = bytearray(struct.pack('f', current))
 while 1:
   #Timers
   prev_time = cur_time
   cur_time = millis()
-  
+  frame_time = cur_time - prev_time
+  max_fps = max(frame_time, max_fps)
+  avg_fps += frame_time
+  avg_fps_count += 1
+  for i in range(5):    
+    if ( frame_time > lag_cutoff + i ):
+      lag_count[i] += 1
+    
   #read from devices to update info
   for sr in SerialReaders:
     sr.readSerial()
@@ -260,7 +281,6 @@ while 1:
     
 
   #calculate PID loop
-  
 
   #write serial to devices
   if motor_connected:
@@ -286,13 +306,13 @@ while 1:
 
     # Write motor current every loop if motor should be on.
     #motor_set_status == 1 and
-    if (  cur_time - motor_write_time > 50 ):
-        s_motor.write(b'\x02')
-        s_motor.write(b'\x05')
-        s_motor.write(b'\x02')
-        s_motor.write(a)
-        s.flush()
-      
+    if (  cur_time - motor_write_time > 20 ):
+      motor_write_time = cur_time
+      s_motor.write(b'\x02')
+      s_motor.write(b'\x05')
+      s_motor.write(b'\x02')
+      s_motor.write(bytearray(struct.pack('f', current)))
+        
     
 
   time.sleep(.005)
