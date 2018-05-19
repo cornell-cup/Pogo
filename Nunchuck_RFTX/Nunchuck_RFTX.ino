@@ -29,6 +29,7 @@ uint8_t C;
 uint8_t Z;
 uint8_t data[5];
 uint8_t pot;
+int pot2;
 uint8_t rwStart;
 uint8_t jumpStart;
 bool powerOff;
@@ -202,9 +203,12 @@ void loop()
 
   //Serial.println("XJoystick is"); Serial.println(XJoystick);
 
-  pot = analogRead(A3);
+  pot2 = analogRead(A3);
+  pot = pot2 / 4;
 
+  //Serial.println("Pot2 is"); Serial.println(pot2);
   //Serial.println("Pot is"); Serial.println(pot);
+  //delay(500);
 
   onesDigit = pot % 10;
   pot = pot - onesDigit;
