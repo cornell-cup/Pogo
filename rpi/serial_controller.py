@@ -7,21 +7,19 @@ HasStatusUpdate = True
 StatusTime = 500
 
 
-
-
-s0 = serial.Serial('/dev/ttyACM0', 115200)
-s1 = serial.Serial('/dev/ttyACM1', 115200)
-#s2 = serial.Serial('/dev/ttyACM2', 115200)
+s0 = serial.Serial('/dev/ttyACM1', 115200)
+s1 = serial.Serial('/dev/ttyACM0', 115200)
+s2 = serial.Serial('/dev/ttyACM2', 115200)
 #s3 = serial.Serial('/dev/ttyACM3', 115200)
 
 #Reassign as necessary, plug them in the order you want.
 #Use dmesg command in the terminal to determine which one is which.
-s_motor = s1
 s_imu = s0
-s_nunchuck = s0
+s_motor = s1
+s_nunchuck = s2
 s_solenoid = s0
 
-imu_connected = False
+imu_connected = True
 motor_connected = True
 sol_connected = False
 nunchuck_connected = True
@@ -61,7 +59,7 @@ theta_prev = 0
 theta_deriv = 0
 theta_average = 0
 
-current = 5.0
+current = 30.0
 
 #PID Constants
 zero_offset = 0
@@ -111,7 +109,7 @@ class ProcessSerial:
           self.reset()
           self.hasStart = True
         else:
-          print ("Has noise ::{}".format( inByte ))
+          print ("{} has noise ::{}".format( self.name, inByte ))
       #the packet is too long, longer than any of our set packets
       elif len(self.buffer) > 100:
         self.reset()
@@ -143,7 +141,7 @@ def printStatus():
   print( "Motor Status: {} :: Set-> {} :: Current -> {}".format( motor_status, motor_set_status, current ) )
   print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
   print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
-  print( "RPM: {} :: Nunchuck: {}".format( motor_rpm, nun_x ))
+  print( "IMU: {},{},{} :: RPM: {} :: Nunchuck: {}".format( imu_euler[0],imu_euler[1],imu_euler[2], motor_rpm, nun_x ))
   max_fps = 0
   avg_fps = 0
   avg_fps_count = 0
@@ -206,17 +204,17 @@ def processImuPacket(packet):
     global imu_euler
     global imu_gyro
     global imu_linaccel
-    euler_x = struct.unpack('d', bytes(packet[1:9]))
-    euler_y = struct.unpack('d', bytes(packet[9:17]))
-    euler_z = struct.unpack('d', bytes(packet[17:25]))
+    euler_x = struct.unpack('d', bytes(packet[1:9]))[0]
+    euler_y = struct.unpack('d', bytes(packet[9:17]))[0]
+    euler_z = struct.unpack('d', bytes(packet[17:25]))[0]
     imu_euler = (euler_x,euler_y,euler_z)
-    gyro_x = struct.unpack('d', bytes(packet[25:33]))
-    gyro_y = struct.unpack('d', bytes(packet[33:41]))
-    gyro_z = struct.unpack('d', bytes(packet[41:49]))
+    gyro_x = struct.unpack('d', bytes(packet[25:33]))[0]
+    gyro_y = struct.unpack('d', bytes(packet[33:41]))[0]
+    gyro_z = struct.unpack('d', bytes(packet[41:49]))[0]
     imu_gyro = (gyro_x,gyro_y,gyro_z)
-    linacc_x = struct.unpack('d', bytes(packet[49:57]))
-    linacc_y = struct.unpack('d', bytes(packet[57:65]))
-    linacc_z = struct.unpack('d', bytes(packet[65:73]))
+    linacc_x = struct.unpack('d', bytes(packet[49:57]))[0]
+    linacc_y = struct.unpack('d', bytes(packet[57:65]))[0]
+    linacc_z = struct.unpack('d', bytes(packet[65:73]))[0]
     imu_linaccel = (linacc_x,linacc_y,linacc_z)
 
   else:
