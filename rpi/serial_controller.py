@@ -5,6 +5,7 @@ import struct
 #CONSTANTS - SWAP TO CHANGE BEHAVIOR
 HasStatusUpdate = True
 StatusTime = 500
+MAX_CURRENT = 30
 
 
 s0 = serial.Serial('/dev/ttyACM1', 115200)
@@ -53,10 +54,10 @@ nun_x = -1
 rpi_nun_override = False #Use when the rpi needs to directly control motor/solenoid
                          #Reason for the motor_set_status and nun_wheel split.
 state = 0
-error = 0
 theta = 0
 theta_prev = 0
 theta_deriv = 0
+theta_integral = 0
 theta_average = 0
 
 current = 30.0
@@ -239,6 +240,9 @@ def processNunchuckPacket(packet):
       sol_set_status = nun_jump  
     nun_x = int(packet[2])
     
+def shutdown():
+  #Todo
+  1==1
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
 processMotorSerial = ProcessSerial("motor", s_motor, processMotorPacket)
@@ -273,12 +277,23 @@ while 1:
     sr.readSerial()
   #use info to calculate what to return
 
-  if ( HasStatusUpdate and (cur_time - status_time) > StatusTime ):
-    status_time = cur_time
-    printStatus()
-    
 
+    
+  #make sure anything based on time is normalized to frame time.
   #calculate PID loop
+  theta_prev = theta
+  theta = imu_euler[1]
+  theta_deriv = (theta - theta_prev) / frame_time
+  #theta_integral = 
+  theta_average = (frame_time/1000 * theta) + ((1-frame_time/1000) * theta_average)
+
+  #Todo check signs(directions)
+  current = 4.0 * theta + 33.0 * theta_deriv
+  current = max(-MAX_CURRENT, min(current, MAX_CURRENT))
+
+  #Todo Wind down
+  if ( abs(theta) > 20 or abs(motor_rpm) > 3000 ) :
+    shutdown()#TODO implement
 
   #write serial to devices
   if motor_connected:
@@ -290,7 +305,7 @@ while 1:
       s_motor.write(b'\x01')
       s_motor.write(b'\x01')
       motor_waiting_on_ack = True
-      current = -current
+      theta_integral = 0
       lag_time = cur_time
       
     if ( motor_status == 1 and motor_set_status == 0 and not motor_waiting_off_ack):
@@ -311,6 +326,8 @@ while 1:
       s_motor.write(b'\x02')
       s_motor.write(bytearray(struct.pack('f', current)))
         
-    
+  if ( HasStatusUpdate and (cur_time - status_time) > StatusTime ):
+    status_time = cur_time
+    printStatus()
 
   time.sleep(.005)
