@@ -9,6 +9,7 @@
 #define ShutoffTime 500
 #define ReadMotorControllerTime 160
 #define BreakCurrent 8.0
+#define RampCurrent 10.0
 
 struct bldcMeasure measuredValues;
 
@@ -166,7 +167,7 @@ void processPacket(){
       }
     }
   } else if (serialBuffer[0] == '\2' && packetSize == 5){
-    current = serialReadFloat(1);    
+    target_current = serialReadFloat(1);    
   }
   last_received = time;
 }
@@ -263,9 +264,16 @@ void loop() {
   //Actually control the motor current
   if( !motor_on ) {
     current = 0.0;
+    target_current = 0.0;
     VescUartSetCurrentBrake(BreakCurrent);
 
   } else {
+    if (abs(target_current - current) > RampCurrent ){
+      float a = target_current - current > 0 ? RampCurrent : -RampCurrent;
+      current = current + a;
+    } else {
+      current = target_current;
+    }
     VescUartSetCurrent(current);    
   }
   
