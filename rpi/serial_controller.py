@@ -1,12 +1,18 @@
 import serial
 import time
 import struct
+import signal
 
 #CONSTANTS - SWAP TO CHANGE BEHAVIOR
 HasStatusUpdate = True
 StatusTime = 500
 MAX_CURRENT = 30
 
+running = True
+def signal_handler(signal, frame):
+  global running
+  running = False
+signal.signal(signal.SIGINT, signal_handler)
 
 s0 = serial.Serial('/dev/ttyACM1', 115200)
 s1 = serial.Serial('/dev/ttyACM0', 115200)
@@ -49,6 +55,7 @@ sol_set_status = 0
 nun_wheel = 0
 nun_jump = 0
 nun_x = -1
+nun_first_press = True
 
 #Rpi Values #Make sure to normalize by loop time.
 rpi_nun_override = False #Use when the rpi needs to directly control motor/solenoid
@@ -232,13 +239,17 @@ def processNunchuckPacket(packet):
     global nun_jump
     global sol_set_status
     global nun_x
-    nun_wheel = packet[0] #Todo Should probably fix this arduino side.
-    if ( not rpi_nun_override and nun_wheel != motor_set_status ):
-      motor_set_status = nun_wheel  
-    nun_jump = packet[1]
-    if ( not rpi_nun_override and nun_jump != sol_set_status ):
-      sol_set_status = nun_jump  
-    nun_x = int(packet[2])
+    global nun_first_press
+    nun_wheel = packet[0]
+    if not nun_first_press: 
+      if ( not rpi_nun_override and nun_wheel != motor_set_status ):
+        motor_set_status = nun_wheel  
+      nun_jump = packet[1]
+      if ( not rpi_nun_override and nun_jump != sol_set_status ):
+        sol_set_status = nun_jump  
+      nun_x = int(packet[2])
+    elif nun_wheel == 0: #Until we see a 0, we dont let the motor run
+      nun_first_press = False
     
 def shutdown():
   global motor_set_status
@@ -272,7 +283,7 @@ if nunchuck_connected:
   SerialReaders.append(processNunchuckSerial)
   
 print ( "Starting" )
-while 1:
+while running:
   #Timers
   prev_time = cur_time
   cur_time = millis()
@@ -321,7 +332,7 @@ while 1:
       resetPID()
       
     if ( motor_status == 1 and motor_set_status == 0 and not motor_waiting_off_ack):
-      #Send Motor On Packet
+      #Send Motor Off Packet
       print( "sent motor off packet" )
       s_motor.write(b'\x02')
       s_motor.write(b'\x02')
@@ -343,3 +354,32 @@ while 1:
     printStatus()
 
   time.sleep(.005)
+
+#SHUTDOWN EVERYTHING
+
+#Send Motor Off Packet
+print( "sent motor shutdown packet" )
+s_motor.write(b'\x02')
+s_motor.write(b'\x01')
+s_motor.write(b'\x00')
+
+#Send Solenoid Off Packet
+
+
+
+
+
+
+
+if imu_connected:
+  s_imu.flush()
+  s_imu.close()
+if motor_connected:
+  s_motor.flush()
+  s_motor.close()
+if sol_connected:
+  s_solenoid.flush()
+  s_solenoid.close()
+if nunchuck_connected:
+  s_nunchuck.flush()
+  s_nunchuck.close()
