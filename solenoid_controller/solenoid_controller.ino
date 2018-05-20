@@ -25,7 +25,7 @@ volatile int derivative;
 int derivativeCopy;
 int pastDerivativeCopy;
 int scope_current = 0;
-bool is_start = true;
+bool is_start = false;
 int pastScopeCurrent = 0;
 
 int past_current;
@@ -87,16 +87,19 @@ void loop() {
     current = map( derivativeCopy, -40, 200, 0, MAX_CURRENT );
     current = constrain( current, 0, MAX_CURRENT);
     */
-    for ( int i = 0; i < 2; i++ ) {
+    //int value = analogRead( POT );
+    for ( int i = 0; i < 1; i++ ) {
         delay( 164 );
+        //delay( 142);
         digitalWrite( LED, HIGH );
-        for ( int i = 50; i < 200; i += 10 ) {
+        for ( int i = 50; i < 200; i += 5 ) {
          analogWrite( SCOPE2, i );
          analogWrite( SCOPE, i);
         }
-        delay ( 20 );
+        delay ( 120 );
+        //delay( 142 );
         digitalWrite( LED, LOW );
-        for ( int i = 200; i > 50; i -= 10 ) {
+        for ( int i = 200; i > 50; i -= 5 ) {
           analogWrite( SCOPE2, i );
           analogWrite( SCOPE, i );
         }
@@ -116,6 +119,9 @@ void loop() {
     }*/
      is_start = false; 
   }
+  else if ( currentPot < 160 ) {
+    current = 0.0;
+  }
   else if ( currentPot < MIDDLE && derivativeCopy > 100 ){ // was 100 before
     current = map( derivativeCopy, 100, 150, 0, MAX_CURRENT );
     current = constrain( current, 0, MAX_CURRENT);
@@ -131,7 +137,7 @@ void loop() {
   scope_current = constrain( scope_current, 50, 200 );
  // Serial.print( "Derivative " ); 
  // Serial.println( derivativeCopy);
-  //Serial.print( "Potentiometer " ); Serial.println( currentPot );
+  Serial.print( "Potentiometer " ); Serial.println( currentPot );
   
   //Serial.print( "SCOPE " );
  // if ( past_current != scope_current ) { Serial.print( "scope = " ); Serial.print( scope_current); Serial.print( "just current" ); Serial.println( current);}
