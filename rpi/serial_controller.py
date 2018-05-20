@@ -60,7 +60,7 @@ theta_deriv = 0
 theta_integral = 0
 theta_average = 0
 
-current = 30.0
+current = 0.0
 
 #PID Constants
 zero_offset = 0
@@ -241,8 +241,20 @@ def processNunchuckPacket(packet):
     nun_x = int(packet[2])
     
 def shutdown():
-  #Todo
-  1==1
+  global motor_set_status
+  motor_set_status = 0
+  print( "sent motor off packet" )
+  s_motor.write(b'\x02')
+  s_motor.write(b'\x02')
+  s_motor.write(b'\x01')
+  s_motor.write(b'\x00')
+
+def resetPID():
+  global theta_integral
+  global theta_average
+  theta_integral = 0
+  theta_average = 0
+
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
 processMotorSerial = ProcessSerial("motor", s_motor, processMotorPacket)
@@ -291,9 +303,9 @@ while 1:
   current = 4.0 * theta + 33.0 * theta_deriv
   current = max(-MAX_CURRENT, min(current, MAX_CURRENT))
 
-  #Todo Wind down
+  #Todo Wind down(RPM Spindown)
   if ( abs(theta) > 20 or abs(motor_rpm) > 3000 ) :
-    shutdown()#TODO implement
+    shutdown()
 
   #write serial to devices
   if motor_connected:
@@ -305,8 +317,8 @@ while 1:
       s_motor.write(b'\x01')
       s_motor.write(b'\x01')
       motor_waiting_on_ack = True
-      theta_integral = 0
       lag_time = cur_time
+      resetPID()
       
     if ( motor_status == 1 and motor_set_status == 0 and not motor_waiting_off_ack):
       #Send Motor On Packet
