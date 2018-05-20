@@ -5,15 +5,16 @@
 #define MaxPacketSize 40
 #define HasHeartbeat true
 #define HeartbeatTime 100
-#define HasShutoffTimeout false
-#define ShutoffTime 100
+#define HasShutoffTimeout true
+#define ShutoffTime 500
 #define ReadMotorControllerTime 160
-#define BreakCurrent 4.0
+#define BreakCurrent 8.0
 
 struct bldcMeasure measuredValues;
 
 unsigned long time;
 unsigned long prev_time;
+unsigned long frame_time;
 unsigned long tx_time;
 unsigned long heartbeat_time;
 unsigned long last_received;
@@ -28,6 +29,7 @@ bool m_off_ack = false;
 bool emergency_shutoff = false;
 
 float current = 0.0;
+float target_current = 0.0;
 int rpm = 0;
 
 char inByte = 0;   // for incoming serial data
@@ -137,7 +139,7 @@ void resetAll(){
 }
 
 void shutoff(){
-  emergency_shutoff = true;
+  emergency_shutoff = false;
   VescUartSetCurrentBrake(BreakCurrent);
   current = 0;
   motor_on = false;
@@ -183,6 +185,7 @@ void setup() {
 void loop() {
   prev_time = time;
   time = millis();
+  frame_time = time - prev_time;
   //Serial.println( time - prev_time ); //Used to print loop frequency.
   
   //Read Serial for any updates from Master
@@ -262,13 +265,9 @@ void loop() {
     current = 0.0;
     VescUartSetCurrentBrake(BreakCurrent);
 
-  }
-  if( !emergency_shutoff ) {
-    VescUartSetCurrent(current);    
   } else {
-    VescUartSetCurrentBrake(BreakCurrent);
-  }  
-
+    VescUartSetCurrent(current);    
+  }
   
   //Write output back to master
   if(OutputSerial){
