@@ -18,7 +18,8 @@ signal.signal(signal.SIGINT, signal_handler)
 
 s0 = serial.Serial('/dev/ttyACM1', 115200)
 s1 = serial.Serial('/dev/ttyACM2', 115200)
-s2 = serial.Serial('/dev/ttyACM3', 115200)
+# s2 = serial.Serial('/dev/ttyACM3', 115200)
+s2 = serial.Serial('/dev/pts/2', 115200)
 s3 = serial.Serial('/dev/ttyACM0', 115200)
 
 #Reassign as necessary, plug them in the order you want.

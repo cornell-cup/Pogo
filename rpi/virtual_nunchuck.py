@@ -5,7 +5,7 @@ serial_read = serial.Serial('/dev/pts/2')
 serial_write = serial.Serial('/dev/pts/3')
 while 1:
 
-    i = input("1: All off, 2: Wheel On, 3: Jump On, < > move")
+    i = input("1: All off, 2: Wheel On, 3: Jump On, < > move :")
 
     if i == '1':
         print( "All off" )
