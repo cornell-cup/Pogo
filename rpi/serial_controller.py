@@ -6,7 +6,7 @@ import signal
 #CONSTANTS - SWAP TO CHANGE BEHAVIOR
 HasStatusUpdate = True
 StatusTime = 500
-MAX_CURRENT = 5
+MAX_CURRENT = 40
 MAX_RPM = 2200
 
 running = True
@@ -15,8 +15,8 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s0 = serial.Serial('/dev/ttyACM4', 115200)
-s1 = serial.Serial('/dev/ttyACM5', 115200)
+s0 = serial.Serial('/dev/ttyACM5', 115200)
+s1 = serial.Serial('/dev/ttyACM4', 115200)
 s2 = serial.Serial('/dev/ttyACM3', 115200)
 #s3 = serial.Serial('/dev/ttyACM3', 115200)
 
@@ -149,8 +149,11 @@ def printStatus():
   global lag_count 
   print( "-------------{}--------------".format( cur_time - start_time ) )
   print( "Motor Status: {} :: Set-> {} :: Theta -> {:.3g} :: Current -> {:.3g}".format( motor_status, motor_set_status, theta, current ) )
-  print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
+  #print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
   print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
+  print( "Raw PID:: Theta -> {:.3g} :: TDeriv -> {:.3g} ".format(theta, theta_deriv))
+  print( "PID:: P -> {:.3g} :: D -> {:.3g} :: R -> {:.3g}".format(p,d,r))
+  #print( "Gyro: {},{},{}".format(imu_gyro[0],imu_gyro[1],imu_gyro[2]))
   print( "IMU: {},{},{} :: RPM: {} :: Nunchuck: {}".format( imu_euler[0],imu_euler[1],imu_euler[2], motor_rpm, nun_x ))
   max_fps = 0
   avg_fps = 0
@@ -280,6 +283,9 @@ def resetPID():
   theta_average = 0
   in_shutdown = False
 
+def maxCurrent():
+  return max(MAX_CURRENT - ( (MAX_CURRENT - 15) * abs(motor_rpm) / 4000), 0)
+
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
 processMotorSerial = ProcessSerial("motor", s_motor, processMotorPacket)
@@ -319,17 +325,21 @@ while running:
   #make sure anything based on time is normalized to frame time.
   #calculate PID loop
   theta_prev = theta
-  theta = imu_euler[1] - 1.1
-  theta_deriv = (theta - theta_prev) / (frame_time + 1)
+  theta = imu_euler[1] 
+  theta_deriv = -imu_gyro[2]
+  #theta_deriv = (theta - theta_prev) / (frame_time + 1)
   #theta_integral = 
   theta_average = (frame_time/1000 * theta) + ((1-frame_time/1000) * theta_average)
-
+  p = 22.0 * theta
+  d = 1.8 * theta_deriv
+  r = .01 * motor_rpm
   #Todo check signs(directions)
-  current = 15.0 * theta + 33.0 * theta_deriv
-  current = max(-MAX_CURRENT, min(current, MAX_CURRENT))
+  current = p + d + r 
+  max_cur = maxCurrent()
+  current = max(-max_cur, min(current, max_cur))
 
   #Todo Wind down(RPM Spindown)
-  if ( abs(theta) > 20 or abs(motor_rpm) > 3000 ) :
+  if ( abs(theta) > 20 or abs(motor_rpm) > 4000 ) :
     shutdown()
     1==1
 
@@ -368,7 +378,7 @@ while running:
     status_time = cur_time
     printStatus()
 
-  time.sleep(.005)
+  #time.sleep(.005)
 
 #SHUTDOWN EVERYTHING
 
