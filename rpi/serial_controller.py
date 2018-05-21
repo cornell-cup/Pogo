@@ -17,19 +17,19 @@ signal.signal(signal.SIGINT, signal_handler)
 
 s0 = serial.Serial('/dev/ttyACM5', 115200)
 s1 = serial.Serial('/dev/ttyACM4', 115200)
-s2 = serial.Serial('/dev/ttyACM3', 115200)
-#s3 = serial.Serial('/dev/ttyACM3', 115200)
+s2 = serial.Serial('/dev/ttyACM6', 115200)
+s3 = serial.Serial('/dev/ttyACM7', 115200)
 
 #Reassign as necessary, plug them in the order you want.
 #Use dmesg command in the terminal to determine which one is which.
 s_imu = s0
 s_motor = s1
 s_nunchuck = s2
-s_solenoid = s0
+s_solenoid = s3
 
 imu_connected = True
 motor_connected = True
-sol_connected = False
+sol_connected = True
 nunchuck_connected = True
 
 
@@ -47,10 +47,10 @@ motor_waiting_off_ack = False
 #Solenoid Values
 sol_status = 0
 sol_set_status = 0
-##sol_period = 0
-##sol_duty_cycle = .5
-##sol_waiting_on_ack = False
-##sol_waiting_off_ack = False
+sol_on_time = 0
+sol_off_time = 100
+sol_waiting_on_ack = False
+sol_waiting_off_ack = False
 
 #Nunchuck Values
 nun_wheel = 0
@@ -82,9 +82,11 @@ cur_time = millis()
 start_time = cur_time
 prev_time = cur_time
 status_time = cur_time
-motor_ack_timer = cur_time
+motor_ack_timer = cur_time #Todo do something if ack timers time out
+solenoid_ack_timer = cur_time
 lag_time = cur_time
 motor_write_time = cur_time
+solenoid_write_time = cur_time
 
 max_fps = 0
 avg_fps = 0
@@ -149,9 +151,9 @@ def printStatus():
   global lag_count 
   print( "-------------{}--------------".format( cur_time - start_time ) )
   print( "Motor Status: {} :: Set-> {} :: Theta -> {:.3g} :: Current -> {:.3g}".format( motor_status, motor_set_status, theta, current ) )
-  #print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
+  print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
   print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
-  print( "Raw PID:: Theta -> {:.3g} :: TDeriv -> {:.3g} ".format(theta, theta_deriv))
+  #print( "Raw PID:: Theta -> {:.3g} :: TDeriv -> {:.3g} ".format(theta, theta_deriv))
   print( "PID:: P -> {:.3g} :: D -> {:.3g} :: R -> {:.3g}".format(p,d,r))
   #print( "Gyro: {},{},{}".format(imu_gyro[0],imu_gyro[1],imu_gyro[2]))
   print( "IMU: {},{},{} :: RPM: {} :: Nunchuck: {}".format( imu_euler[0],imu_euler[1],imu_euler[2], motor_rpm, nun_x ))
@@ -173,6 +175,7 @@ def processMotorPacket(packet):
   elif packet[0] == 69:
     print ("Motor Error")
   #heartbeat #Todo need to check when the motor_status does not equal what rpi says it should be.
+  #Need to check heartbeat
   elif packet[0] == 1 and len(packet)==2:
     if packet[1] == 0:
       motor_status = 2
@@ -196,7 +199,7 @@ def processMotorPacket(packet):
       if motor_waiting_on_ack:
         motor_waiting_on_ack = False
         motor_status = 1
-        print( "Lag time :: {}".format( cur_time - lag_time ) )
+        #print( "Lag time :: {}".format( cur_time - lag_time ) )
       else:
         print("Received ack wrongly motor_on")
 
@@ -205,6 +208,48 @@ def processMotorPacket(packet):
     motor_rpm = int.from_bytes(packet[1:5], byteorder='little', signed=True)
   else:
     print (packet)
+
+def processSolenoidPacket(packet):
+  global sol_status
+  if not packet:
+    print ("Error: Packet Empty")
+  elif len(packet) == 0:
+    print ("Error: Packet Empty")
+  elif packet[0] == '0':
+    print ("Emergency solenoid shutdown!!!")
+    sol_status = 2
+  elif packet[0] == 69:
+    print ("Solenoid Error")
+  #heartbeat #Todo need to check when the sol_status does not equal what rpi says it should be.
+  #Need to check heartbeat
+  elif packet[0] == 1 and len(packet)==2:
+    if packet[1] == 0:
+      sol_status = 2
+    if packet[1] == 1:
+      sol_status = 1
+    if packet[1] == 2:
+      sol_status = 0
+  #solenoid acks
+  elif packet[0] == 2 and len(packet)==2:
+    if packet[1] == 0:
+      print('Solenoid turned off')
+      global sol_waiting_off_ack
+      if sol_waiting_off_ack:
+        sol_waiting_off_ack = False
+        sol_status = 0
+      else:
+        print("Received ack wrongly solenoid_off")
+    if packet[1] == 1:
+      print('Solenoid turned on')
+      global sol_waiting_on_ack
+      if sol_waiting_on_ack:
+        sol_waiting_on_ack = False
+        sol_status = 1
+      else:
+        print("Received ack wrongly solenoid_on")
+  else:
+    print (packet)
+
 
 def processImuPacket(packet):
   if not packet:
@@ -263,17 +308,27 @@ def shutdown():
   if not in_shutdown:
     global motor_set_status
     motor_set_status = 0
+    global sol_set_status 
+    sol_set_status = 0
     global in_shutdown
     in_shutdown = True
     global rpi_nun_override
     rpi_nun_override = True
     global nun_requires_press
     nun_requires_press = True
-    print( "sent motor off packet" )
-    s_motor.write(b'\x02')
-    s_motor.write(b'\x02')
-    s_motor.write(b'\x01')
-    s_motor.write(b'\x00')
+    if motor_connected:
+      print( "sent motor off packet" )
+      s_motor.write(b'\x02')
+      s_motor.write(b'\x02')
+      s_motor.write(b'\x01')
+      s_motor.write(b'\x00')
+    if sol_connected:
+      print( "sent solenoid off packet" )
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x01')
+      s_solenoid.write(b'\x00')
+    
 
 def resetPID():
   global theta_integral
@@ -289,7 +344,7 @@ def maxCurrent():
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
 processMotorSerial = ProcessSerial("motor", s_motor, processMotorPacket)
-processSolenoidSerial = ProcessSerial("solenoid", s_solenoid, processMotorPacket)#todo process sol packet
+processSolenoidSerial = ProcessSerial("solenoid", s_solenoid, processSolenoidPacket)
 processNunchuckSerial = ProcessSerial("nunchuck", s_nunchuck, processNunchuckPacket)
 
 SerialReaders = []
@@ -353,7 +408,7 @@ while running:
       s_motor.write(b'\x01')
       s_motor.write(b'\x01')
       motor_waiting_on_ack = True
-      lag_time = cur_time
+      #lag_time = cur_time
       resetPID()
       
     if ( motor_status == 1 and motor_set_status == 0 and not motor_waiting_off_ack):
@@ -373,6 +428,36 @@ while running:
       s_motor.write(b'\x05')
       s_motor.write(b'\x02')
       s_motor.write(bytearray(struct.pack('f', current)))
+
+  if sol_connected:
+    if ( sol_status == 0 and sol_set_status == 1 and not sol_waiting_on_ack):
+      #Send Solenoid On Packet
+      print( "Sent solenoid on packet")
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x01')
+      s_solenoid.write(b'\x01')
+      sol_waiting_on_ack = True
+      
+    if ( sol_status == 1 and sol_set_status == 0 and not sol_waiting_off_ack):
+      #Send Solenoid Off Packet
+      print( "Sent solenoid off packet" )
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x01')
+      s_solenoid.write(b'\x00')
+      sol_waiting_off_ack = True
+
+    # Write sol times every loop if solenoid should be on.
+    #sol_set_status == 1 and
+    if (  cur_time - solenoid_write_time > 40 ):
+      sol_write_time = cur_time
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(b'\x09')
+      s_solenoid.write(b'\x02')
+      s_solenoid.write(sol_on_time.to_bytes(4,byteorder='little'))
+      s_solenoid.write(sol_off_time.to_bytes(4,byteorder='little'))
+
         
   if ( HasStatusUpdate and (cur_time - status_time) > StatusTime ):
     status_time = cur_time
@@ -383,12 +468,18 @@ while running:
 #SHUTDOWN EVERYTHING
 
 #Send Motor Off Packet
-print( "sent motor shutdown packet" )
-s_motor.write(b'\x02')
-s_motor.write(b'\x01')
-s_motor.write(b'\x00')
+if motor_connected:
+  print( "sent motor shutdown packet" )
+  s_motor.write(b'\x02')
+  s_motor.write(b'\x01')
+  s_motor.write(b'\x00')
 
 #Send Solenoid Off Packet
+if sol_connected:
+  print( "sent solenoid shutdown packet" )
+  s_solenoid.write(b'\x02')
+  s_solenoid.write(b'\x01')
+  s_solenoid.write(b'\x00')
 
 
 
