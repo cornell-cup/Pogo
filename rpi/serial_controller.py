@@ -19,7 +19,7 @@ signal.signal(signal.SIGINT, signal_handler)
 s_imu = serial.Serial('/dev/ttyACM1', 115200)        #Serial Number: 4379830
 s_motor = serial.Serial('/dev/ttyACM2', 115200)      #Serial Number: 3971020
 #s_nunchuck = serial.Serial('/dev/ttyACM3', 115200)         #Real Nunchuck
-s_nunchuck = serial.Serial('/dev/pts/2', 115200)     #Virtual Nunchuck
+s_nunchuck = serial.Serial('/dev/pts/3', 115200)     #Virtual Nunchuck
 s_solenoid = serial.Serial('/dev/ttyACM0', 115200)   #Serial Number: 4379770
 
 #Reassign as necessary, plug them in the order you want.
@@ -152,7 +152,7 @@ def printStatus():
   print( "-------------{}--------------".format( cur_time - start_time ) )
   print( "Motor Status: {} :: Set-> {} :: Theta -> {:.3g} :: Current -> {:.3g}".format( motor_status, motor_set_status, theta, current ) )
   print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
-  print( "Integral Tuning:: Avg {:.3g} :: Int {:.3g}".format(theta_average, theta_integral))
+  print( "Integral Tuning:: Avg {:.3g} :: Int {:.3g} :: OnGround {}".format(theta_average, theta_integral, a))
   #print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
   #print( "Raw PID:: Theta -> {:.3g} :: TDeriv -> {:.3g} ".format(theta, theta_deriv))
   print( "PID:: P -> {:.3g} :: D -> {:.3g} :: R -> {:.3g}".format(p,d,r))
@@ -385,19 +385,21 @@ while running:
   #theta_integral = 
   theta_average = (frame_time/1000 * theta) + ((1-frame_time/1000) * theta_average)
   p = 23.0 * theta
+  p2 = 30 * theta
   d = 3.2 * theta_deriv
-  d2 = 5.0 * theta_deriv
+  d2 = 4.0 * theta_deriv
   r = .01 * motor_rpm
   #Todo check signs(directions)
-  if((imu_linaccel[0]**2 + imu_linaccel[1]**2 + imu_linaccel[2]**2)**0.5 < 0.5):
-    current = p + d2 + r
+  a = (imu_linaccel[0]**2 + imu_linaccel[1]**2 + imu_linaccel[2]**2)**0.5
+  if(a < 5.0):
+    current = p2 + d2 + r
   else:
     current = p + d + r 
   max_cur = maxCurrent()
   current = max(-max_cur, min(current, max_cur))
 
   #Todo Wind down(RPM Spindown)
-  if ( abs(theta) > 20 or abs(motor_rpm) > 4000 ) :
+  if ( abs(theta) > 20 or abs(motor_rpm) > 4000 or (imu_euler[0] + imu_euler[1] + imu_euler[2] < 2.0) ) :
     shutdown()
     1==1
 

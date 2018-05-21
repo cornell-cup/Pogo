@@ -6,7 +6,7 @@ import time
 #to start the ports
 #Run three terminals
 serial_read = serial.Serial('/dev/pts/2')
-serial_write = serial.Serial('/dev/pts/3')
+serial_write = serial.Serial('/dev/pts/4')
 while 1:
 
     i = input("1: All off, 2: Wheel On, 3: Jump On, < > move :")
