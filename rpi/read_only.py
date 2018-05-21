@@ -1,7 +1,7 @@
 import serial
 import time
 
-s0 = serial.Serial('/dev/ttyACM2')
+s0 = serial.Serial('/dev/ttyACM1')
 #s1 = serial.Serial('/dev/ttyACM1')
 print(s0.isOpen())
 print(s0.inWaiting())

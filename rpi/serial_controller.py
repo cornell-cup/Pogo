@@ -15,10 +15,10 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s0 = serial.Serial('/dev/ttyACM5', 115200)
-s1 = serial.Serial('/dev/ttyACM4', 115200)
-s2 = serial.Serial('/dev/ttyACM6', 115200)
-s3 = serial.Serial('/dev/ttyACM7', 115200)
+s0 = serial.Serial('/dev/ttyACM6', 115200)
+s1 = serial.Serial('/dev/ttyACM5', 115200)
+s2 = serial.Serial('/dev/ttyACM3', 115200)
+s3 = serial.Serial('/dev/ttyACM4', 115200)
 
 #Reassign as necessary, plug them in the order you want.
 #Use dmesg command in the terminal to determine which one is which.
@@ -47,8 +47,8 @@ motor_waiting_off_ack = False
 #Solenoid Values
 sol_status = 0
 sol_set_status = 0
-sol_on_time = 0
-sol_off_time = 100
+sol_on_time = 80
+sol_off_time = 220
 sol_waiting_on_ack = False
 sol_waiting_off_ack = False
 
@@ -156,6 +156,7 @@ def printStatus():
   #print( "Raw PID:: Theta -> {:.3g} :: TDeriv -> {:.3g} ".format(theta, theta_deriv))
   print( "PID:: P -> {:.3g} :: D -> {:.3g} :: R -> {:.3g}".format(p,d,r))
   #print( "Gyro: {},{},{}".format(imu_gyro[0],imu_gyro[1],imu_gyro[2]))
+  print( "Nunchuck:: Wheel -> {} :: Jump -> {} :: X -> {}".format(nun_wheel, nun_jump, nun_x))
   print( "IMU: {},{},{} :: RPM: {} :: Nunchuck: {}".format( imu_euler[0],imu_euler[1],imu_euler[2], motor_rpm, nun_x ))
   max_fps = 0
   avg_fps = 0
@@ -188,20 +189,16 @@ def processMotorPacket(packet):
     if packet[1] == 0:
       print('Motor turned off')
       global motor_waiting_off_ack
-      if motor_waiting_off_ack:
-        motor_waiting_off_ack = False
-        motor_status = 0
-      else:
-        print("Received ack wrongly motor_off")
+      motor_waiting_off_ack = False
+      motor_status = 0
+        # print("Received ack wrongly motor_off")
     if packet[1] == 1:
       print('Motor turned on')
       global motor_waiting_on_ack
-      if motor_waiting_on_ack:
-        motor_waiting_on_ack = False
-        motor_status = 1
-        #print( "Lag time :: {}".format( cur_time - lag_time ) )
-      else:
-        print("Received ack wrongly motor_on")
+      motor_waiting_on_ack = False
+      motor_status = 1
+      #print( "Lag time :: {}".format( cur_time - lag_time ) )
+        # print("Received ack wrongly motor_on")
 
   elif packet[0] == 3 and len(packet) == 5:
     global motor_rpm
@@ -450,7 +447,7 @@ while running:
 
     # Write sol times every loop if solenoid should be on.
     #sol_set_status == 1 and
-    if (  cur_time - solenoid_write_time > 40 ):
+    if ( cur_time - solenoid_write_time > 40 ):
       sol_write_time = cur_time
       s_solenoid.write(b'\x02')
       s_solenoid.write(b'\x09')
