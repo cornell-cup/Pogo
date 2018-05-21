@@ -108,6 +108,21 @@ void loop()
   if (analogRead(A2) < 20) {
     Z = 1; //Z Pressed
   }
+
+    //setting rwStart based on C and jumpStart to 0 if rwStart is set to 0
+  if (C != 0) {
+    if (rwStart == 0) rwStart = 1;
+    else {
+      rwStart = 0;
+      jumpStart = 0;
+    }
+  }
+  //setting jumpStart if the rwStart condition is met
+  if ( rwStart == 1 && Z != 0) {
+    if (jumpStart == 0) jumpStart = 1;
+    else jumpStart = 0;
+  }
+  
   //Serial.println("C and Z before Loop");
   //Serial.print(C);
   //Serial.println(Z);
@@ -170,25 +185,26 @@ void loop()
   }
 
 
-  //Serial.println("C and Z after Loop");
-  //Serial.print(C);
-  //Serial.println(Z);
+  //Serial.println("rwStart and jumpStart after Loop");
+  //Serial.print(rwStart);
+  //Serial.println(jumpStart);
+  
 
   //setting the Start variables
   // if (!powerOff) {
-  //setting rwStart based on C and jumpStart to 0 if rwStart is set to 0
-  if (C != 0) {
-    if (rwStart == 0) rwStart = 1;
-    else {
-      rwStart = 0;
-      jumpStart = 0;
-    }
-  }
-  //setting jumpStart if the rwStart condition is met
-  if ( rwStart == 1 && Z != 0) {
-    if (jumpStart == 0) jumpStart = 1;
-    else jumpStart = 0;
-  }
+//            //setting rwStart based on C and jumpStart to 0 if rwStart is set to 0
+//            if (C != 0) {
+//              if (rwStart == 0) rwStart = 1;
+//              else {
+//                rwStart = 0;
+//                jumpStart = 0;
+//              }
+//            }
+//            //setting jumpStart if the rwStart condition is met
+//            if ( rwStart == 1 && Z != 0) {
+//              if (jumpStart == 0) jumpStart = 1;
+//              else jumpStart = 0;
+//            }
   //}
 
   //Setting Joystick data
