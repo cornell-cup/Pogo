@@ -6,7 +6,8 @@ import signal
 #CONSTANTS - SWAP TO CHANGE BEHAVIOR
 HasStatusUpdate = True
 StatusTime = 500
-MAX_CURRENT = 30
+MAX_CURRENT = 5
+MAX_RPM = 2200
 
 running = True
 def signal_handler(signal, frame):
@@ -14,9 +15,9 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s0 = serial.Serial('/dev/ttyACM1', 115200)
-s1 = serial.Serial('/dev/ttyACM0', 115200)
-s2 = serial.Serial('/dev/ttyACM2', 115200)
+s0 = serial.Serial('/dev/ttyACM4', 115200)
+s1 = serial.Serial('/dev/ttyACM5', 115200)
+s2 = serial.Serial('/dev/ttyACM3', 115200)
 #s3 = serial.Serial('/dev/ttyACM3', 115200)
 
 #Reassign as necessary, plug them in the order you want.
@@ -55,11 +56,12 @@ sol_set_status = 0
 nun_wheel = 0
 nun_jump = 0
 nun_x = -1
-nun_first_press = True
+nun_requires_press = True
 
 #Rpi Values #Make sure to normalize by loop time.
 rpi_nun_override = False #Use when the rpi needs to directly control motor/solenoid
                          #Reason for the motor_set_status and nun_wheel split.
+in_shutdown = False
 state = 0
 theta = 0
 theta_prev = 0
@@ -146,7 +148,7 @@ def printStatus():
   global avg_fps_count
   global lag_count 
   print( "-------------{}--------------".format( cur_time - start_time ) )
-  print( "Motor Status: {} :: Set-> {} :: Current -> {}".format( motor_status, motor_set_status, current ) )
+  print( "Motor Status: {} :: Set-> {} :: Theta -> {:.3g} :: Current -> {:.3g}".format( motor_status, motor_set_status, theta, current ) )
   print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
   print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
   print( "IMU: {},{},{} :: RPM: {} :: Nunchuck: {}".format( imu_euler[0],imu_euler[1],imu_euler[2], motor_rpm, nun_x ))
@@ -239,9 +241,11 @@ def processNunchuckPacket(packet):
     global nun_jump
     global sol_set_status
     global nun_x
-    global nun_first_press
+    global nun_requires_press
+    global rpi_nun_override
+    global in_shutdown
     nun_wheel = packet[0]
-    if not nun_first_press: 
+    if not nun_requires_press: 
       if ( not rpi_nun_override and nun_wheel != motor_set_status ):
         motor_set_status = nun_wheel  
       nun_jump = packet[1]
@@ -249,22 +253,32 @@ def processNunchuckPacket(packet):
         sol_set_status = nun_jump  
       nun_x = int(packet[2])
     elif nun_wheel == 0: #Until we see a 0, we dont let the motor run
-      nun_first_press = False
+      nun_requires_press = False
+      rpi_nun_override = False
     
 def shutdown():
-  global motor_set_status
-  motor_set_status = 0
-  print( "sent motor off packet" )
-  s_motor.write(b'\x02')
-  s_motor.write(b'\x02')
-  s_motor.write(b'\x01')
-  s_motor.write(b'\x00')
+  if not in_shutdown:
+    global motor_set_status
+    motor_set_status = 0
+    global in_shutdown
+    in_shutdown = True
+    global rpi_nun_override
+    rpi_nun_override = True
+    global nun_requires_press
+    nun_requires_press = True
+    print( "sent motor off packet" )
+    s_motor.write(b'\x02')
+    s_motor.write(b'\x02')
+    s_motor.write(b'\x01')
+    s_motor.write(b'\x00')
 
 def resetPID():
   global theta_integral
   global theta_average
+  global in_shutdown
   theta_integral = 0
   theta_average = 0
+  in_shutdown = False
 
 
 processImuSerial = ProcessSerial("imu", s_imu, processImuPacket)
@@ -305,18 +319,19 @@ while running:
   #make sure anything based on time is normalized to frame time.
   #calculate PID loop
   theta_prev = theta
-  theta = imu_euler[1]
-  theta_deriv = (theta - theta_prev) / frame_time
+  theta = imu_euler[1] - 1.1
+  theta_deriv = (theta - theta_prev) / (frame_time + 1)
   #theta_integral = 
   theta_average = (frame_time/1000 * theta) + ((1-frame_time/1000) * theta_average)
 
   #Todo check signs(directions)
-  current = 4.0 * theta + 33.0 * theta_deriv
+  current = 15.0 * theta + 33.0 * theta_deriv
   current = max(-MAX_CURRENT, min(current, MAX_CURRENT))
 
   #Todo Wind down(RPM Spindown)
   if ( abs(theta) > 20 or abs(motor_rpm) > 3000 ) :
     shutdown()
+    1==1
 
   #write serial to devices
   if motor_connected:
