@@ -16,9 +16,9 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s_imu = serial.Serial('/dev/ttyACM4', 115200)        #Serial Number: 4379830
+s_imu = serial.Serial('/dev/ttyACM1', 115200)        #Serial Number: 4379830
 s_motor = serial.Serial('/dev/ttyACM2', 115200)      #Serial Number: 3971020
-# s2 = serial.Serial('/dev/ttyACM3', 115200)         #Real Nunchuck
+#s_nunchuck = serial.Serial('/dev/ttyACM3', 115200)         #Real Nunchuck
 s_nunchuck = serial.Serial('/dev/pts/2', 115200)     #Virtual Nunchuck
 s_solenoid = serial.Serial('/dev/ttyACM0', 115200)   #Serial Number: 4379770
 
@@ -47,7 +47,7 @@ motor_waiting_off_ack = False
 sol_status = 0
 sol_set_status = 0
 sol_on_time = 80
-sol_off_time = 220
+sol_off_time = 195
 sol_waiting_on_ack = False
 sol_waiting_off_ack = False
 
@@ -386,9 +386,13 @@ while running:
   theta_average = (frame_time/1000 * theta) + ((1-frame_time/1000) * theta_average)
   p = 23.0 * theta
   d = 3.2 * theta_deriv
+  d2 = 5.0 * theta_deriv
   r = .01 * motor_rpm
   #Todo check signs(directions)
-  current = p + d + r 
+  if((imu_linaccel[0]**2 + imu_linaccel[1]**2 + imu_linaccel[2]**2)**0.5 < 0.5):
+    current = p + d2 + r
+  else:
+    current = p + d + r 
   max_cur = maxCurrent()
   current = max(-max_cur, min(current, max_cur))
 
