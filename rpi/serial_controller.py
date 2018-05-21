@@ -6,6 +6,7 @@ import signal
 #CONSTANTS - SWAP TO CHANGE BEHAVIOR
 HasStatusUpdate = True
 StatusTime = 500
+DebugNunchuck = True
 MAX_CURRENT = 40
 MAX_RPM = 2200
 
@@ -15,10 +16,10 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s0 = serial.Serial('/dev/ttyACM6', 115200)
-s1 = serial.Serial('/dev/ttyACM5', 115200)
+s0 = serial.Serial('/dev/ttyACM1', 115200)
+s1 = serial.Serial('/dev/ttyACM2', 115200)
 s2 = serial.Serial('/dev/ttyACM3', 115200)
-s3 = serial.Serial('/dev/ttyACM4', 115200)
+s3 = serial.Serial('/dev/ttyACM0', 115200)
 
 #Reassign as necessary, plug them in the order you want.
 #Use dmesg command in the terminal to determine which one is which.
@@ -68,6 +69,7 @@ theta_prev = 0
 theta_deriv = 0
 theta_integral = 0
 theta_average = 0
+theta_offset = 0
 
 current = 0.0
 
@@ -152,7 +154,8 @@ def printStatus():
   print( "-------------{}--------------".format( cur_time - start_time ) )
   print( "Motor Status: {} :: Set-> {} :: Theta -> {:.3g} :: Current -> {:.3g}".format( motor_status, motor_set_status, theta, current ) )
   print( "Solenoid Status: {} :: Set-> {}".format( sol_status, sol_set_status ) )
-  print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
+  print( "Integral Tuning:: Avg {:.3g} :: Int {:.3g}".format(theta_average, theta_integral))
+  #print( "Loop Time::  Avg/{}: {:.3g} :: Max/{}{}: {}".format( avg_fps_count, avg_fps/avg_fps_count, lag_cutoff, lag_count, max_fps ))
   #print( "Raw PID:: Theta -> {:.3g} :: TDeriv -> {:.3g} ".format(theta, theta_deriv))
   print( "PID:: P -> {:.3g} :: D -> {:.3g} :: R -> {:.3g}".format(p,d,r))
   #print( "Gyro: {},{},{}".format(imu_gyro[0],imu_gyro[1],imu_gyro[2]))
@@ -302,12 +305,13 @@ def processNunchuckPacket(packet):
       rpi_nun_override = False
     
 def shutdown():
+  global in_shutdown
   if not in_shutdown:
+    print ("SHUTDOWNNNNNNNNNNNNNNNNNNN")
     global motor_set_status
     motor_set_status = 0
     global sol_set_status 
     sol_set_status = 0
-    global in_shutdown
     in_shutdown = True
     global rpi_nun_override
     rpi_nun_override = True
@@ -377,13 +381,13 @@ while running:
   #make sure anything based on time is normalized to frame time.
   #calculate PID loop
   theta_prev = theta
-  theta = imu_euler[1] 
+  theta = imu_euler[1] - theta_offset
   theta_deriv = -imu_gyro[2]
   #theta_deriv = (theta - theta_prev) / (frame_time + 1)
   #theta_integral = 
   theta_average = (frame_time/1000 * theta) + ((1-frame_time/1000) * theta_average)
-  p = 22.0 * theta
-  d = 1.8 * theta_deriv
+  p = 23.0 * theta
+  d = 3.2 * theta_deriv
   r = .01 * motor_rpm
   #Todo check signs(directions)
   current = p + d + r 
@@ -405,6 +409,7 @@ while running:
       s_motor.write(b'\x01')
       s_motor.write(b'\x01')
       motor_waiting_on_ack = True
+      theta_offset = imu_euler[1]
       #lag_time = cur_time
       resetPID()
       
@@ -419,7 +424,7 @@ while running:
 
     # Write motor current every loop if motor should be on.
     #motor_set_status == 1 and
-    if (  cur_time - motor_write_time > 20 ):
+    if ( cur_time - motor_write_time > 20 and not DebugNunchuck ):
       motor_write_time = cur_time
       s_motor.write(b'\x02')
       s_motor.write(b'\x05')
@@ -427,7 +432,7 @@ while running:
       s_motor.write(bytearray(struct.pack('f', current)))
 
   if sol_connected:
-    if ( sol_status == 0 and sol_set_status == 1 and not sol_waiting_on_ack):
+    if ( sol_status == 0 and sol_set_status == 1 and not sol_waiting_on_ack and not DebugNunchuck):
       #Send Solenoid On Packet
       print( "Sent solenoid on packet")
       s_solenoid.write(b'\x02')
@@ -447,7 +452,7 @@ while running:
 
     # Write sol times every loop if solenoid should be on.
     #sol_set_status == 1 and
-    if ( cur_time - solenoid_write_time > 40 ):
+    if ( cur_time - solenoid_write_time > 40 and not DebugNunchuck):
       sol_write_time = cur_time
       s_solenoid.write(b'\x02')
       s_solenoid.write(b'\x09')
