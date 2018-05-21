@@ -6,7 +6,7 @@ import signal
 #CONSTANTS - SWAP TO CHANGE BEHAVIOR
 HasStatusUpdate = True
 StatusTime = 500
-DebugNunchuck = True
+DebugNunchuck = False
 MAX_CURRENT = 40
 MAX_RPM = 2200
 
@@ -16,7 +16,7 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s_imu = serial.Serial('/dev/ttyACM1', 115200)        #Serial Number: 4379830
+s_imu = serial.Serial('/dev/ttyACM4', 115200)        #Serial Number: 4379830
 s_motor = serial.Serial('/dev/ttyACM2', 115200)      #Serial Number: 3971020
 # s2 = serial.Serial('/dev/ttyACM3', 115200)         #Real Nunchuck
 s_nunchuck = serial.Serial('/dev/pts/2', 115200)     #Virtual Nunchuck

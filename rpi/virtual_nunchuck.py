@@ -1,6 +1,10 @@
 import serial
 import time
 
+
+#Run socat -d -d pty,raw,echo=0 pty,raw,echo=0 
+#to start the ports
+#Run three terminals
 serial_read = serial.Serial('/dev/pts/2')
 serial_write = serial.Serial('/dev/pts/3')
 while 1:
