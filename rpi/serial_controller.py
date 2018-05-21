@@ -16,18 +16,15 @@ def signal_handler(signal, frame):
   running = False
 signal.signal(signal.SIGINT, signal_handler)
 
-s0 = serial.Serial('/dev/ttyACM1', 115200)
-s1 = serial.Serial('/dev/ttyACM2', 115200)
-# s2 = serial.Serial('/dev/ttyACM3', 115200)
-s2 = serial.Serial('/dev/pts/2', 115200)
-s3 = serial.Serial('/dev/ttyACM0', 115200)
+s_imu = serial.Serial('/dev/ttyACM1', 115200)        #Serial Number: 4379830
+s_motor = serial.Serial('/dev/ttyACM2', 115200)      #Serial Number: 3971020
+# s2 = serial.Serial('/dev/ttyACM3', 115200)         #Real Nunchuck
+s_nunchuck = serial.Serial('/dev/pts/2', 115200)     #Virtual Nunchuck
+s_solenoid = serial.Serial('/dev/ttyACM0', 115200)   #Serial Number: 4379770
 
 #Reassign as necessary, plug them in the order you want.
 #Use dmesg command in the terminal to determine which one is which.
-s_imu = s0
-s_motor = s1
-s_nunchuck = s2
-s_solenoid = s3
+# Run ->  dmesg | egrep "USB ACM|Serial Number:"
 
 imu_connected = True
 motor_connected = True
